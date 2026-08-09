@@ -3,123 +3,381 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SIPAit - Sonda de Producción</title>
+    <title>SIPAit - Terminal de Campo Móvil</title>
     <style>
-        :root { --primary: #4CAF50; --bg: #121212; --card: #1e1e1e; --text: #e0e0e0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
-        .container { max-width: 600px; margin: 0 auto; }
-        h2 { color: var(--primary); border-bottom: 2px solid #333; padding-bottom: 8px; }
-        .card { background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        label { display: block; margin-top: 10px; font-weight: bold; font-size: 0.85rem; color: #b0bec5; }
-        input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        button { flex: 1; padding: 14px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
-        .btn-main { background: var(--primary); }
-        .btn-sec { background: #0288D1; }
-        .btn-scan { background: #8E24AA; }
-        #log { background: #000; color: #00ff66; padding: 10px; font-family: monospace; font-size: 0.75rem; height: 120px; overflow-y: auto; border-radius: 4px; margin-top: 15px; }
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg-body: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --radius: 10px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-body);
+            color: var(--text-main);
+            margin: 0;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .app-header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .app-header h1 {
+            font-size: 1.25rem;
+            color: var(--primary);
+            margin: 0;
+            font-weight: 700;
+        }
+
+        /* Sistema de Pestañas (Tabs) para cambiar de herramienta */
+        .tabs-nav {
+            display: flex;
+            background: var(--border);
+            padding: 3px;
+            border-radius: var(--radius);
+            margin-bottom: 15px;
+            gap: 3px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--card-bg);
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Contenedores de vistas */
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        h3 {
+            font-size: 1rem;
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: var(--text-main);
+        }
+
+        label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 0.95rem;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-main);
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+        }
+
+        .row-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .row-group > div {
+            flex: 1;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:active { background: var(--primary-dark); }
+        
+        .btn-secondary { background: #e2e8f0; color: var(--text-main); }
+        .btn-accent { background: #7c3aed; color: white; }
+
+        #log {
+            background: #0f172a;
+            color: #38bdf8;
+            font-family: monospace;
+            font-size: 0.75rem;
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <h2>SIPAit - Móvil v1.0</h2>
 
-    <div class="card">
-        <label>Contexto (Sincronizado):</label>
-        <select id="globalContext"></select>
-        
-        <label>Zona Específica:</label>
-        <select id="areaSelect"></select>
+    <div class="app-header">
+        <h1>SIPAit Mobile</h1>
     </div>
 
-    <div class="card">
-        <label>Activo Identificado:</label>
-        <input type="text" id="notes" placeholder="ID de activo o lectura QR...">
-        <button class="btn-scan" onclick="handleScan()">📷 Escanear Activo</button>
-        <button class="btn-main" onclick="executeCapture()">📍 Registrar Ubicación 3D</button>
-        <button class="btn-sec" onclick="exportData()">💾 Exportar Session.json</button>
+    <!-- Pestañas de Navegación de Herramientas -->
+    <div class="tabs-nav">
+        <button class="tab-btn active" onclick="switchView('emplazamiento')">📍 Emplazamientos</button>
+        <button class="tab-btn" onclick="switchView('dispositivos')">💻 Dispositivos (OCR)</button>
     </div>
 
-    <div class="card">
-        <label>Trazabilidad del Sistema:</label>
-        <div id="log">Inicializando sistema...</div>
+    <!-- VISTA 1: REGISTRO DE EMPLAZAMIENTO -->
+    <div id="view-emplazamiento" class="view-section active">
+        <div class="card">
+            <h3>Nuevo Emplazamiento</h3>
+            
+            <label>Código de Emplazamiento:</label>
+            <div class="row-group">
+                <input type="text" id="emplazamientoCode" placeholder="Ej: PR-PRD-01">
+                <button type="button" class="btn btn-secondary" style="width: auto; margin-bottom: 12px;" onclick="autogenerateCode()">🔄</button>
+            </div>
+
+            <label>Contexto / Planta:</label>
+            <select id="globalContext"></select>
+
+            <label>Zona Específica:</label>
+            <select id="areaSelect"></select>
+        </div>
+
+        <div class="card">
+            <h3>Terna Geográfica (GPS)</h3>
+            <button type="button" class="btn btn-secondary" onclick="captureLocation()">📍 Capturar GPS Actual</button>
+            
+            <div class="row-group">
+                <div>
+                    <label>Latitud:</label>
+                    <input type="text" id="lat" placeholder="0.0000">
+                </div>
+                <div>
+                    <label>Longitud:</label>
+                    <input type="text" id="lon" placeholder="0.0000">
+                </div>
+                <div>
+                    <label>Altitud (m):</label>
+                    <input type="text" id="alt" placeholder="0">
+                </div>
+            </div>
+
+            <label>Observaciones:</label>
+            <textarea id="notes" rows="2" placeholder="Notas del emplazamiento..."></textarea>
+            
+            <button type="button" class="btn btn-primary" onclick="registerEmplazamiento()">💾 Guardar Emplazamiento</button>
+        </div>
     </div>
-</div>
+
+    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS (Preparada para OCR / Escáner) -->
+    <div id="view-dispositivos" class="view-section">
+        <div class="card">
+            <h3>Inventario de Dispositivo (Sonda OCR)</h3>
+            
+            <label>Número de Serie / Etiqueta:</label>
+            <div class="row-group">
+                <input type="text" id="deviceSerial" placeholder="Escanear placa o introducir...">
+                <button type="button" class="btn btn-accent" style="width: auto; margin-bottom: 12px;" onclick="alert('Módulo de cámara OCR en preparación.')">📷 OCR</button>
+            </div>
+
+            <label>Tipo de Dispositivo:</label>
+            <select id="deviceType">
+                <option value="PC">PC / Estación de Trabajo</option>
+                <option value="Switch">Switch de Red</option>
+                <option value="Servidor">Servidor</option>
+                <option value="SAI">SAI / UPS</option>
+            </select>
+
+            <label>Emplazamiento Asociado:</label>
+            <select id="deviceEmplazamientoSelect"></select>
+
+            <button type="button" class="btn btn-primary" onclick="registerDevice()">Registrar Dispositivo</button>
+        </div>
+    </div>
+
+    <!-- Trazabilidad Global -->
+    <div class="card">
+        <label>Log del Sistema:</label>
+        <div id="log">Inicializando terminal móvil...</div>
+    </div>
 
 <script>
-    // Estado de la Aplicación
-    const state = {
-        config: null,
-        records: [],
-        currentContext: ''
-    };
+    let appConfig = {};
+    let localDatabase = { emplazamientos: [], dispositivos: [] };
 
-    const logger = (msg) => {
-        const log = document.getElementById('log');
-        log.innerHTML += `> ${msg}<br>`;
-        log.scrollTop = log.scrollHeight;
-    };
+    // Control de pestañas
+    function switchView(viewName) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        if(viewName === 'emplazamiento') {
+            document.getElementById('view-emplazamiento').classList.add('active');
+            event.currentTarget.classList.add('active');
+        } else if(viewName === 'dispositivos') {
+            document.getElementById('view-dispositivos').classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+    }
+
+    function logMessage(msg) {
+        const logBox = document.getElementById('log');
+        logBox.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // Autogenerar código
+    function autogenerateCode() {
+        const randomNum = Math.floor(100 + Math.random() * 900);
+        document.getElementById('emplazamientoCode').value = `PR-GEN-${randomNum}`;
+        logMessage("Código de emplazamiento autogenerado.");
+    }
 
     async function init() {
         try {
             const res = await fetch('./frontend/config.json');
-            state.config = await res.json();
+            appConfig = await res.json();
             
-            const contextSelect = document.getElementById('globalContext');
-            Object.keys(state.config.mapas).forEach(k => {
+            const ctxSelect = document.getElementById('globalContext');
+            ctxSelect.innerHTML = '';
+            
+            Object.keys(appConfig.mapas).forEach(k => {
                 const opt = document.createElement('option');
-                opt.value = k; opt.textContent = state.config.mapas[k].nombre_mental;
-                contextSelect.appendChild(opt);
+                opt.value = k; 
+                opt.textContent = appConfig.mapas[k].nombre_mental;
+                ctxSelect.appendChild(opt);
             });
             
-            state.currentContext = contextSelect.value;
-            renderAreas();
-            logger("Sistema operativo. Configuración cargada.");
-        } catch(e) { logger("CRITICAL: Error al cargar config.json"); }
+            updateAreas();
+            logMessage("Configuración sincronizada con éxito.");
+        } catch (e) {
+            logMessage("AVISO: No se pudo cargar config.json (Modo local activo).");
+        }
     }
 
-    function renderAreas() {
-        const select = document.getElementById('areaSelect');
-        select.innerHTML = '';
-        state.config.mapas[state.currentContext].zonas.forEach(z => {
-            const opt = document.createElement('option');
-            opt.value = z; opt.textContent = z;
-            select.appendChild(opt);
-        });
-    }
-
-    document.getElementById('globalContext').onchange = (e) => {
-        state.currentContext = e.target.value;
-        renderAreas();
-    };
-
-    function executeCapture() {
-        if (!navigator.geolocation) return logger("ERROR: Sin soporte GPS");
+    function updateAreas() {
+        const ctx = document.getElementById('globalContext').value;
+        const areaSelect = document.getElementById('areaSelect');
+        areaSelect.innerHTML = '';
         
+        if(appConfig.mapas && appConfig.mapas[ctx]) {
+            appConfig.mapas[ctx].zonas.forEach(z => {
+                const opt = document.createElement('option');
+                opt.value = z; 
+                opt.textContent = z;
+                areaSelect.appendChild(opt);
+            });
+        }
+    }
+
+    document.getElementById('globalContext').onchange = updateAreas;
+
+    function captureLocation() {
+        if (!navigator.geolocation) {
+            alert("Geolocalización no soportada.");
+            return;
+        }
+        logMessage("Adquiriendo señal GPS...");
         navigator.geolocation.getCurrentPosition(pos => {
-            const record = {
-                id: `ID-${Date.now()}`,
-                context: state.currentContext,
-                area: document.getElementById('areaSelect').value,
-                coords: { lat: pos.coords.latitude, lon: pos.coords.longitude, alt: pos.coords.altitude || 0 },
-                note: document.getElementById('notes').value
-            };
-            state.records.push(record);
-            logger(`Registrado: ${record.id}`);
-        }, err => logger(`GPS Error: ${err.message}`), { enableHighAccuracy: true });
+            document.getElementById('lat').value = pos.coords.latitude.toFixed(6);
+            document.getElementById('lon').value = pos.coords.longitude.toFixed(6);
+            document.getElementById('alt').value = pos.coords.altitude ? pos.coords.altitude.toFixed(1) : "0";
+            logMessage("Coordenadas 3D capturadas correctamente.");
+        }, err => {
+            logMessage(`Error GPS: ${err.message}`);
+        }, { enableHighAccuracy: true });
     }
 
-    function exportData() {
-        const blob = new Blob([JSON.stringify(state.records, null, 2)], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `SIPAit_${Date.now()}.json`;
-        a.click();
+    function registerEmplazamiento() {
+        const code = document.getElementById('emplazamientoCode').value;
+        if(!code) {
+            alert("El código de emplazamiento es obligatorio.");
+            return;
+        }
+        const record = {
+            code,
+            context: document.getElementById('globalContext').value,
+            zona: document.getElementById('areaSelect').value,
+            lat: document.getElementById('lat').value,
+            lon: document.getElementById('lon').value,
+            alt: document.getElementById('alt').value,
+            notes: document.getElementById('notes').value
+        };
+        localDatabase.emplazamientos.push(record);
+        
+        // Actualizar selector de dispositivos también
+        const devEmpSelect = document.getElementById('deviceEmplazamientoSelect');
+        const opt = document.createElement('option');
+        opt.value = code; opt.textContent = `${code} (${record.zona})`;
+        devEmpSelect.appendChild(opt);
+
+        logMessage(`Emplazamiento [${code}] guardado localmente.`);
+        alert("Emplazamiento registrado con éxito.");
     }
 
-    function handleScan() {
-        logger("Iniciando escáner...");
-        // Aquí integraremos html5-qrcode
+    function registerDevice() {
+        const serial = document.getElementById('deviceSerial').value;
+        if(!serial) {
+            alert("Introduce o escanea el número de serie.");
+            return;
+        }
+        const device = {
+            serial,
+            type: document.getElementById('deviceType').value,
+            emplazamiento: document.getElementById('deviceEmplazamientoSelect').value
+        };
+        localDatabase.dispositivos.push(device);
+        logMessage(`Dispositivo [${serial}] asociado correctamente.`);
+        alert("Dispositivo registrado.");
     }
 
     init();
