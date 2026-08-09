@@ -1,11 +1,38 @@
 [
     {
-        "timestamp": "2026-08-09T00:46:50.995004",
-        "codigo_emplazamiento": "SEDE SIPA Departamento Desarrollo",
+        "timestamp": "2026-08-09T01:01:22.224305",
+        "codigo_emplazamiento": "home",
         "planta": "Planta Baja",
-        "zona": "Control de Calidad",
-        "latitud": 39.57062,
-        "longitud": -0.3312995,
-        "observaciones": "Test"
+        "zona": "Línea de Producción 1",
+        "latitud": 39.5706277,
+        "longitud": -0.3313282,
+        "observaciones": "safa"
+    },
+    {
+        "timestamp": "2026-08-09T01:01:49.016152",
+        "codigo_emplazamiento": "home 1",
+        "planta": "Planta 1",
+        "zona": "Línea de Producción 2",
+        "latitud": 39.5706277,
+        "longitud": -0.3313282,
+        "observaciones": "eeeee"
+    },
+    {
+        "timestamp": "2026-08-09T01:15:34.740098",
+        "codigo_emplazamiento": "ejemplo mapa 1",
+        "planta": "Planta Baja",
+        "zona": "Línea de Producción 1",
+        "latitud": 40.4167279,
+        "longitud": -3.7032905,
+        "observaciones": "Primer ejemplo"
+    },
+    {
+        "timestamp": "2026-08-09T01:21:59.245920",
+        "codigo_emplazamiento": "Cocina",
+        "planta": "Planta Baja",
+        "zona": "Línea de Producción 1",
+        "latitud": 39.5705828,
+        "longitud": -0.3313176,
+        "observaciones": "Es la cocina"
     }
 ]
