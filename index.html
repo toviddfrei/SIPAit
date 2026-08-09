@@ -60,7 +60,7 @@
 
     async function initApp() {
         try {
-            const response = await fetch('./config.json');
+            const response = await fetch('./frontend/config.json');
             appConfig = await response.json();
             const contextSelect = document.getElementById('globalContext');
             
