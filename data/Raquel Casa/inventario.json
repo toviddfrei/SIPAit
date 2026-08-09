@@ -1,0 +1,13 @@
+[
+    {
+        "id_registro": "INV-2026-0001",
+        "timestamp": "2026-08-09T18:05:12.835192",
+        "tipo": "Portátil",
+        "marca": "Lenovo",
+        "modelo": "IdeaPad Slim 3 15IAH8",
+        "numero_serie": "pf4lqzbdPF9XB4314025",
+        "estado": "Operativo",
+        "codigo_emplazamiento": "EMP-2026-0001",
+        "observaciones": ""
+    }
+]

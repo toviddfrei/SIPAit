@@ -4,10 +4,10 @@ from pydantic import BaseModel, ConfigDict
 import json
 import os
 from datetime import datetime
+from typing import Optional
 
 app = FastAPI(title="SIPAit API Topológica de Inventario", version="2.0")
 
-# Permitir CORS para que la PWA móvil/frontend pueda comunicarse sin restricciones
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,115 +16,91 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Directorio y Ficheros de Datos Seguros ---
-DIRECTORIO_DATOS = "data"
-ARCHIVO_UBICACIONES = os.path.join(DIRECTORIO_DATOS, "ubicaciones.json")
-ARCHIVO_INVENTARIO = os.path.join(DIRECTORIO_DATOS, "inventario.json")
+# --- Directorio Base de Datos ---
+BASE_DATA_DIR = "data"
+os.makedirs(BASE_DATA_DIR, exist_ok=True)
 
-# Asegurar que el directorio data existe al arrancar el servidor
-os.makedirs(DIRECTORIO_DATOS, exist_ok=True)
+# --- Funciones de Utilidad Dinámicas ---
+def get_map_path(mapa: str):
+    path = os.path.join(BASE_DATA_DIR, mapa)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def cargar_datos(mapa: str, archivo: str):
+    path = os.path.join(get_map_path(mapa), archivo)
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            try: return json.load(f)
+            except: return []
+    return []
+
+def guardar_datos(mapa: str, archivo: str, datos):
+    path = os.path.join(get_map_path(mapa), archivo)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(datos, f, indent=4, ensure_ascii=False)
 
 # --- Modelos Pydantic ---
-
 class UbicacionEntrada(BaseModel):
     model_config = ConfigDict(extra='allow')
-    
-    codigo_emplazamiento: str  # Ej: FAB-PL2-T01
-    planta: str                # Ej: Planta 2 - Producción
-    zona: str                  # Ej: Línea de Ensambaje 3
-    latitud: float | None = None
-    longitud: float | None = None
-    observaciones: str | None = ""
+    codigo_emplazamiento: Optional[str] = None  # <-- Permitimos que sea opcional/null
+    planta: str
+    zona: str
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    altitud: Optional[float] = None
+    observaciones: Optional[str] = None
 
 class DispositivoEntrada(BaseModel):
     model_config = ConfigDict(extra='allow')
-    
-    tipo: str                  # Ej: PC Sobremesa, Monitor, Switch
+    tipo: str
     marca: str
     modelo: str
     numero_serie: str
     estado: str
-    codigo_emplazamiento: str  # Relación: Debe apuntar a un emplazamiento existente
+    codigo_emplazamiento: str
     observaciones: str | None = ""
 
-# --- Funciones de Utilidad para Ficheros ---
+# --- Endpoints ---
 
-def cargar_datos(archivo):
-    if os.path.exists(archivo):
-        with open(archivo, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
-    return []
-
-def guardar_datos(archivo, datos):
-    with open(archivo, "w", encoding="utf-8") as f:
-        json.dump(datos, f, indent=4, ensure_ascii=False)
-
-# --- Endpoints de Ubicaciones (Paso 1) ---
-
-@app.post("/api/ubicaciones")
-def registrar_ubicacion(ubicacion: UbicacionEntrada):
-    ubicaciones = cargar_datos(ARCHIVO_UBICACIONES)
+@app.post("/api/{mapa}/ubicaciones")
+def registrar_ubicacion(mapa: str, ubicacion: UbicacionEntrada):
+    ubicaciones = cargar_datos(mapa, "ubicaciones.json")
     
-    # Evitar duplicados por código de emplazamiento
-    for u in ubicaciones:
-        if u["codigo_emplazamiento"].lower() == ubicacion.codigo_emplazamiento.lower():
-            raise HTTPException(status_code=400, detail="El código de emplazamiento ya existe.")
-            
-    nueva_ubicacion = {
-        "timestamp": datetime.now().isoformat(),
-        **ubicacion.model_dump()
-    }
+    # Autogenerar código secuencial
+    nuevo_id = f"EMP-{datetime.now().year}-{len(ubicaciones) + 1:04d}"
     
-    ubicaciones.append(nueva_ubicacion)
-    guardar_datos(ARCHIVO_UBICACIONES, ubicaciones)
+    # Convertimos los datos a diccionario y forzamos el nuevo ID autonumérico
+    datos_dict = ubicacion.model_dump()
+    datos_dict["codigo_emplazamiento"] = nuevo_id
+    datos_dict["timestamp"] = datetime.now().isoformat()
     
-    return {
-        "status": "success",
-        "message": f"Emplazamiento {ubicacion.codigo_emplazamiento} registrado correctamente.",
-        "codigo_emplazamiento": ubicacion.codigo_emplazamiento
-    }
-
-@app.get("/api/ubicaciones")
-def obtener_ubicaciones():
-    return cargar_datos(ARCHIVO_UBICACIONES)
-
-# --- Endpoints de Dispositivos (Paso 2) ---
-
-@app.post("/api/registrar")
-def registrar_dispositivo_api(dispositivo: DispositivoEntrada):
-    ubicaciones = cargar_datos(ARCHIVO_UBICACIONES)
+    ubicaciones.append(datos_dict)
+    guardar_datos(mapa, "ubicaciones.json", ubicaciones)
     
-    # Validar integridad referencial: la ubicación debe existir previamente
-    ubicacion_existe = any(u["codigo_emplazamiento"] == dispositivo.codigo_emplazamiento for u in ubicaciones)
-    if not ubicacion_existe:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"El emplazamiento '{dispositivo.codigo_emplazamiento}' no existe. Debe registrar la ubicación primero."
-        )
+    return {"status": "success", "codigo": nuevo_id}
 
-    inventario = cargar_inventario() if 'cargar_inventario' in globals() else cargar_datos(ARCHIVO_INVENTARIO)
-    
-    # Autogenerar ID correlativo real
+@app.get("/api/{mapa}/ubicaciones")
+def obtener_ubicaciones(mapa: str):
+    return cargar_datos(mapa, "ubicaciones.json")
+
+@app.post("/api/{mapa}/registrar")
+def registrar_dispositivo_api(mapa: str, dispositivo: DispositivoEntrada):
+    ubicaciones = cargar_datos(mapa, "ubicaciones.json")
+    if not any(u["codigo_emplazamiento"] == dispositivo.codigo_emplazamiento for u in ubicaciones):
+        raise HTTPException(status_code=404, detail="El emplazamiento no existe.")
+
+    inventario = cargar_datos(mapa, "inventario.json")
     nuevo_id = f"INV-{datetime.now().year}-{len(inventario) + 1:04d}"
-    
-    nuevo_registro = {
-        "id_registro": nuevo_id,
-        "timestamp": datetime.now().isoformat(),
-        **dispositivo.model_dump()
-    }
+    nuevo_registro = {"id_registro": nuevo_id, "timestamp": datetime.now().isoformat(), **dispositivo.model_dump()}
     
     inventario.append(nuevo_registro)
-    guardar_datos(ARCHIVO_INVENTARIO, inventario)
-    
-    return {
-        "status": "success",
-        "message": "Dispositivo registrado y enlazado a ubicación correctamente",
-        "id_registro": nuevo_id
-    }
+    guardar_datos(mapa, "inventario.json", inventario)
+    return {"status": "success", "id_registro": nuevo_id}
 
-@app.get("/api/inventario")
-def obtener_inventario():
-    return cargar_datos(ARCHIVO_INVENTARIO)
+@app.get("/api/{mapa}/inventario")
+def obtener_inventario(mapa: str):
+    return cargar_datos(mapa, "inventario.json")
+
+@app.get("/api/{mapa}/dispositivos")
+def obtener_dispositivos(mapa: str):
+    return cargar_datos(mapa, "inventario.json")
