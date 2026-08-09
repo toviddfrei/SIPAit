@@ -1,0 +1,11 @@
+[
+    {
+        "timestamp": "2026-08-09T00:46:50.995004",
+        "codigo_emplazamiento": "SEDE SIPA Departamento Desarrollo",
+        "planta": "Planta Baja",
+        "zona": "Control de Calidad",
+        "latitud": 39.57062,
+        "longitud": -0.3312995,
+        "observaciones": "Test"
+    }
+]

@@ -1,0 +1,46 @@
+[
+    {
+        "id_registro": "INV-2026-0001",
+        "timestamp": "2026-08-08T20:38:23.538059",
+        "tipo": "Monitor",
+        "marca": "Dell",
+        "modelo": "U2417H",
+        "numero_serie": "123456789",
+        "estado": "Operativo",
+        "ubicacion": "Almacén",
+        "observaciones": "Sin incidencias"
+    },
+    {
+        "id_registro": "INV-2026-0002",
+        "timestamp": "2026-08-08T20:39:19.569828",
+        "tipo": "Monitor",
+        "marca": "Dell",
+        "modelo": "U2417H",
+        "numero_serie": "22656215616",
+        "estado": "Operativo",
+        "ubicacion": "Almacén",
+        "observaciones": "Sin incidencias"
+    },
+    {
+        "id_registro": "INV-2026-0003",
+        "timestamp": "2026-08-08T20:39:30.231404",
+        "tipo": "Monitor",
+        "marca": "Dell",
+        "modelo": "U2417H",
+        "numero_serie": "0616554651",
+        "estado": "Operativo",
+        "ubicacion": "Almacén",
+        "observaciones": "Sin incidencias"
+    },
+    {
+        "id_registro": "INV-2026-0004",
+        "timestamp": "2026-08-09T00:52:34.523839",
+        "tipo": "PC Sobremesa",
+        "marca": "HP este",
+        "modelo": "Joe",
+        "numero_serie": "165161632",
+        "estado": "Operativo",
+        "codigo_emplazamiento": "SEDE SIPA Departamento Desarrollo",
+        "observaciones": ""
+    }
+]
