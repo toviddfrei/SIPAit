@@ -37,7 +37,6 @@
             font-weight: 700;
         }
 
-        /* Sistema de Pestañas (Tabs) para cambiar de herramienta */
         .tabs-nav {
             display: flex;
             background: var(--border);
@@ -67,14 +66,8 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        /* Contenedores de vistas */
-        .view-section {
-            display: none;
-        }
-
-        .view-section.active {
-            display: block;
-        }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
 
         .card {
             background: var(--card-bg);
@@ -119,14 +112,8 @@
             background: #fff;
         }
 
-        .row-group {
-            display: flex;
-            gap: 8px;
-        }
-
-        .row-group > div {
-            flex: 1;
-        }
+        .row-group { display: flex; gap: 8px; }
+        .row-group > div { flex: 1; }
 
         .btn {
             width: 100%;
@@ -146,9 +133,9 @@
 
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:active { background: var(--primary-dark); }
-        
         .btn-secondary { background: #e2e8f0; color: var(--text-main); }
         .btn-accent { background: #7c3aed; color: white; }
+        .btn-download { background: #0288d1; color: white; }
 
         #log {
             background: #0f172a;
@@ -216,10 +203,11 @@
             <textarea id="notes" rows="2" placeholder="Notas del emplazamiento..."></textarea>
             
             <button type="button" class="btn btn-primary" onclick="registerEmplazamiento()">💾 Guardar Emplazamiento</button>
+            <button type="button" class="btn btn-download" onclick="exportJSON('emplazamientos')">📥 Descargar JSON de Emplazamientos</button>
         </div>
     </div>
 
-    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS (Preparada para OCR / Escáner) -->
+    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS -->
     <div id="view-dispositivos" class="view-section">
         <div class="card">
             <h3>Inventario de Dispositivo (Sonda OCR)</h3>
@@ -232,16 +220,20 @@
 
             <label>Tipo de Dispositivo:</label>
             <select id="deviceType">
-                <option value="PC">PC / Estación de Trabajo</option>
-                <option value="Switch">Switch de Red</option>
+                <option value="PC Sobremesa">PC Sobremesa</option>
+                <option value="Portátil">Portátil</option>
+                <option value="Monitor">Monitor</option>
+                <option value="Switch">Switch</option>
+                <option value="Impresora">Impresora</option>
                 <option value="Servidor">Servidor</option>
-                <option value="SAI">SAI / UPS</option>
+                <option value="SAI/UPS">SAI/UPS</option>
             </select>
 
             <label>Emplazamiento Asociado:</label>
             <select id="deviceEmplazamientoSelect"></select>
 
             <button type="button" class="btn btn-primary" onclick="registerDevice()">Registrar Dispositivo</button>
+            <button type="button" class="btn btn-download" onclick="exportJSON('dispositivos')">📥 Descargar JSON de Dispositivos</button>
         </div>
     </div>
 
@@ -255,7 +247,6 @@
     let appConfig = {};
     let localDatabase = { emplazamientos: [], dispositivos: [] };
 
-    // Control de pestañas
     function switchView(viewName) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -275,7 +266,6 @@
         logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // Autogenerar código
     function autogenerateCode() {
         const randomNum = Math.floor(100 + Math.random() * 900);
         document.getElementById('emplazamientoCode').value = `PR-GEN-${randomNum}`;
@@ -344,24 +334,26 @@
             return;
         }
         const record = {
-            code,
+            record_id: code,
+            timestamp: new Date().toISOString(),
             context: document.getElementById('globalContext').value,
             zona: document.getElementById('areaSelect').value,
-            lat: document.getElementById('lat').value,
-            lon: document.getElementById('lon').value,
-            alt: document.getElementById('alt').value,
+            coordinates: {
+                latitude: document.getElementById('lat').value,
+                longitude: document.getElementById('lon').value,
+                altitude: document.getElementById('alt').value
+            },
             notes: document.getElementById('notes').value
         };
         localDatabase.emplazamientos.push(record);
         
-        // Actualizar selector de dispositivos también
         const devEmpSelect = document.getElementById('deviceEmplazamientoSelect');
         const opt = document.createElement('option');
         opt.value = code; opt.textContent = `${code} (${record.zona})`;
         devEmpSelect.appendChild(opt);
 
         logMessage(`Emplazamiento [${code}] guardado localmente.`);
-        alert("Emplazamiento registrado con éxito.");
+        alert("Emplazamiento registrado con éxito en memoria.");
     }
 
     function registerDevice() {
@@ -371,13 +363,39 @@
             return;
         }
         const device = {
-            serial,
+            serial_number: serial,
+            timestamp: new Date().toISOString(),
             type: document.getElementById('deviceType').value,
-            emplazamiento: document.getElementById('deviceEmplazamientoSelect').value
+            emplazamiento_code: document.getElementById('deviceEmplazamientoSelect').value
         };
         localDatabase.dispositivos.push(device);
         logMessage(`Dispositivo [${serial}] asociado correctamente.`);
-        alert("Dispositivo registrado.");
+        alert("Dispositivo registrado con éxito en memoria.");
+    }
+
+    function exportJSON(tipo) {
+        const dataArray = localDatabase[tipo];
+        if (!dataArray || dataArray.length === 0) {
+            alert(`No hay registros de ${tipo} para exportar.`);
+            return;
+        }
+
+        const dataStructure = {
+            export_type: tipo,
+            export_timestamp: new Date().toISOString(),
+            total_records: dataArray.length,
+            records: dataArray
+        };
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataStructure, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `sipait_${tipo}_${Date.now()}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+
+        logMessage(`Fichero JSON de ${tipo} descargado correctamente (${dataArray.length} registros).`);
     }
 
     init();
