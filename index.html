@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SIPAit - Terminal de Campo Móvil</title>
+    <!-- Librería para lectura de códigos de barras y QR por cámara -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -137,6 +139,15 @@
         .btn-accent { background: #7c3aed; color: white; }
         .btn-download { background: #0288d1; color: white; }
 
+        #reader {
+            width: 100%;
+            display: none;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
         #log {
             background: #0f172a;
             color: #38bdf8;
@@ -207,16 +218,19 @@
         </div>
     </div>
 
-    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS -->
+    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS CON CÁMARA (QR / BARRAS) -->
     <div id="view-dispositivos" class="view-section">
         <div class="card">
-            <h3>Inventario de Dispositivo (Sonda OCR)</h3>
+            <h3>Inventario de Dispositivo (Sonda OCR / Escáner)</h3>
             
             <label>Número de Serie / Etiqueta:</label>
             <div class="row-group">
                 <input type="text" id="deviceSerial" placeholder="Escanear placa o introducir...">
-                <button type="button" class="btn btn-accent" style="width: auto; margin-bottom: 12px;" onclick="alert('Módulo de cámara OCR en preparación.')">📷 OCR</button>
+                <button type="button" class="btn btn-accent" style="width: auto; margin-bottom: 12px;" onclick="toggleScanner()">📷 Escanear</button>
             </div>
+
+            <!-- Visor de la cámara nativa -->
+            <div id="reader"></div>
 
             <label>Tipo de Dispositivo:</label>
             <select id="deviceType">
@@ -246,8 +260,15 @@
 <script>
     let appConfig = {};
     let localDatabase = { emplazamientos: [], dispositivos: [] };
+    let html5QrCode = null;
+    let scannerIsRunning = false;
 
     function switchView(viewName) {
+        // Si salimos de dispositivos, apagamos la cámara por seguridad
+        if(viewName !== 'dispositivos' && scannerIsRunning) {
+            stopScanner();
+        }
+
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         
@@ -327,6 +348,50 @@
         }, { enableHighAccuracy: true });
     }
 
+    // Funciones del escáner de cámara
+    function toggleScanner() {
+        const readerDiv = document.getElementById('reader');
+        
+        if (!scannerIsRunning) {
+            readerDiv.style.display = 'block';
+            html5QrCode = new Html5Qrcode("reader");
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 100 } };
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                (decodedText) => {
+                    document.getElementById('deviceSerial').value = decodedText;
+                    logMessage(`Código leído: ${decodedText}`);
+                    stopScanner();
+                },
+                () => {}
+            ).then(() => {
+                scannerIsRunning = true;
+                logMessage("Cámara de escaneo activada.");
+            }).catch(err => {
+                logMessage(`Error al iniciar cámara: ${err}`);
+                alert("No se pudo acceder a la cámara. Revisa los permisos.");
+                readerDiv.style.display = 'none';
+            });
+        } else {
+            stopScanner();
+        }
+    }
+
+    function stopScanner() {
+        if (html5QrCode && scannerIsRunning) {
+            html5QrCode.stop().then(() => {
+                scannerIsRunning = false;
+                document.getElementById('reader').style.display = 'none';
+                logMessage("Cámara de escaneo cerrada.");
+            }).catch(err => {
+                logMessage(`Error al detener cámara: ${err}`);
+            });
+        }
+    }
+
     function registerEmplazamiento() {
         const code = document.getElementById('emplazamientoCode').value;
         if(!code) {
@@ -395,7 +460,7 @@
         downloadAnchor.click();
         downloadAnchor.remove();
 
-        logMessage(`Fichero JSON de ${tipo} descargado correctamente (${dataArray.length} registros).`);
+        logMessage(`Fichero JSON de ${tipo} descargado (${dataArray.length} registros).`);
     }
 
     init();
