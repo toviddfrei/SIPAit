@@ -354,36 +354,46 @@
     }
 
     // --- INICIALIZACIÓN Y CONFIGURACIÓN ---
+    // --- INICIALIZACIÓN ADAPTATIVA (Se adapta a la estructura existente del config.json) ---
     async function init() {
-        logMessage("Inicializando terminal móvil de sonda SIPAit...", "INFO");
+        logMessage("Inicializando sonda adaptativa...", "INFO");
+        const configPath = './core/config.json';
+        
         try {
-            const res = await fetch('./config.json');
-            appConfig = await res.json();
+            const res = await fetch(configPath);
+            if (!res.ok) throw new Error("Archivo no accesible");
+            
+            const data = await res.json();
+            appConfig = data; // Guardamos todo el objeto tal cual viene
             
             const ctxSelect = document.getElementById('globalContext');
             ctxSelect.innerHTML = '';
             
-            if(appConfig.mapas) {
-                Object.keys(appConfig.mapas).forEach(k => {
+            // LÓGICA ADAPTATIVA: Buscamos dónde están los mapas o plantas
+            // Si el JSON tiene una clave 'mapas', la usamos. Si no, intentamos iterar sobre la raíz.
+            const source = data.mapas ? data.mapas : data;
+            
+            Object.keys(source).forEach(k => {
+                // Filtramos para evitar meter claves de configuración técnica (como 'sistema') en el select
+                if (typeof source[k] === 'object') {
                     const opt = document.createElement('option');
                     opt.value = k; 
-                    opt.textContent = appConfig.mapas[k].nombre_mental || k;
+                    opt.textContent = source[k].nombre_mental || k;
                     ctxSelect.appendChild(opt);
-                });
-            }
+                }
+            });
             
             updateAreas();
-            logMessage("Configuración cargada correctamente desde config.json", "INFO");
-        } catch (e) {
-            logMessage("AVISO: No se encontró config.json local. Modo independiente activo.", "WARNING");
+            logMessage("Sonda sincronizada con arquitectura de configuración existente.", "INFO");
             
-            // Cargar opción por defecto si no hay JSON
+        } catch (e) {
+            logMessage(`AVISO: Error adaptando configuración (${e.message}). Aplicando valores seguros.`, "WARNING");
             const ctxSelect = document.getElementById('globalContext');
             ctxSelect.innerHTML = '<option value="Fábrica Valencia">Fábrica Valencia</option><option value="Raquel Casa">Raquel Casa</option>';
             updateAreas();
         }
     }
-
+    
     function updateAreas() {
         const ctx = document.getElementById('globalContext').value;
         const areaSelect = document.getElementById('areaSelect');
@@ -397,7 +407,6 @@
                 areaSelect.appendChild(opt);
             });
         } else {
-            // Zonas por defecto si no hay mapas dinámicos
             const defaultZones = ["Planta General", "Servidores / IT", "Almacén", "Oficinas"];
             defaultZones.forEach(z => {
                 const opt = document.createElement('option');
@@ -428,7 +437,7 @@
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
-    // --- ESCÁNER DE CÁMARA (QR / CÓDIGO BARRAS) ---
+    // --- ESCÁNER DE CÁMARA ---
     function toggleScanner() {
         const readerDiv = document.getElementById('reader');
         
@@ -472,7 +481,7 @@
         }
     }
 
-    // --- REGISTRO DE EMPLAZAMIENTOS (Mapeo con main.py: UbicacionEntrada) ---
+    // --- REGISTRO DE EMPLAZAMIENTOS ---
     function registerEmplazamiento() {
         const code = document.getElementById('emplazamientoCode').value.trim();
         if(!code) {
@@ -481,7 +490,6 @@
             return;
         }
 
-        // Mapeo 100% fiel a UbicacionEntrada en main.py
         const record = {
             codigo_emplazamiento: code,
             planta: document.getElementById('globalContext').value || "General",
@@ -494,7 +502,6 @@
 
         localDatabase.emplazamientos.push(record);
         
-        // Actualizar el selector de emplazamientos en la pestaña de dispositivos
         const devEmpSelect = document.getElementById('deviceEmplazamientoSelect');
         const opt = document.createElement('option');
         opt.value = code; 
@@ -505,7 +512,7 @@
         alert("Emplazamiento registrado correctamente en la memoria de la sonda.");
     }
 
-    // --- REGISTRO DE DISPOSITIVOS (Mapeo con main.py: DispositivoEntrada) ---
+    // --- REGISTRO DE DISPOSITIVOS ---
     function registerDevice() {
         const serial = document.getElementById('deviceSerial').value.trim();
         if(!serial) {
@@ -515,9 +522,8 @@
         }
 
         const tagCode = document.getElementById('deviceTag').value.trim() || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-        const generatedId = tagCode; // Usamos la etiqueta como ID principal del registro para mantener coherencia absoluta
+        const generatedId = tagCode;
 
-        // Mapeo 100% fiel a DispositivoEntrada en main.py[cite: 1]
         const device = {
             id_registro: generatedId,
             tipo: document.getElementById('deviceType').value,
@@ -535,12 +541,19 @@
         alert("Dispositivo registrado con éxito en memoria.");
     }
 
-    // --- FUNCIONES DE EXPORTACIÓN JSON ---
+    // --- AUTOGENERADOR ID DISPOSITIVOS ---
+    function autogenerateDeviceCode() {
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const generated = `INV-2026-${randomNum}`;
+        document.getElementById('deviceTag').value = generated;
+        logMessage(`Código de activo autogenerado: ${generated}`, "INFO");
+    }
+
+    // --- EXPORTACIÓN ---
     function exportJSON(tipo) {
         const dataArray = localDatabase[tipo];
         if (!dataArray || dataArray.length === 0) {
             alert(`No hay registros de ${tipo} para exportar.`);
-            logMessage(`Intento de exportación vacío para ${tipo}.`, "WARNING");
             return;
         }
 
@@ -565,16 +578,6 @@
         downloadAnchor.remove();
     }
 
-    // --- FUNCIÓN AUTOGENERACIÓN CÓDIGO ID DISPOSITIVOS ---
-
-    function autogenerateDeviceCode() {
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        const generated = `INV-2026-${randomNum}`;
-        document.getElementById('deviceTag').value = generated;
-        logMessage(`Código de activo autogenerado: ${generated}`, "INFO");
-    }
-
-    // Inicializar al cargar
     window.onload = init;
 </script>
 </body>

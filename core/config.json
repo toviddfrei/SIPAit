@@ -51,6 +51,18 @@
         "Cocción",
         "Apolos"
       ]
+    },
+    {
+      "id": "Daniel Miñana Montero",
+      "nombre_visual": "Mis Emplazamientos/Dispositivos",
+      "nombre_mental": "Mi gestión personal",
+      "latitud_base": 39.57049107652184,
+      "longitud_base": -0.3312649976487983,
+      "altitud_base": 19.0,
+      "plantas": ["Externo", "Investigación", "Dar solución"],
+      "zonas": [
+        "En las anotaciones"
+      ]
     }
   ]
 }
