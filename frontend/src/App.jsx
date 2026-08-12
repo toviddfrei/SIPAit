@@ -30,7 +30,6 @@ const iconoDispositivo = L.divIcon({
 
 const API_URL = 'http://localhost:8000';
 
-// Componente auxiliar para forzar el re-centrado y renderizado de Leaflet
 function ChangeView({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
@@ -49,6 +48,10 @@ function App() {
   const [config, setConfig] = useState(null);
   const [mapaActivo, setMapaActivo] = useState('');
 
+  // Estados de autenticación para la pestaña de configuración ("toalla de la ducha")
+  const [pinIngresado, setPinIngresado] = useState('');
+  const [configDesbloqueada, setConfigDesbloqueada] = useState(false);
+
   const [ubicacionForm, setUbicacionForm] = useState({
     planta: '',
     zona: '',
@@ -65,6 +68,7 @@ function App() {
     marca: '',
     modelo: '',
     numero_serie: '',
+    etiqueta: '', // <-- Nuevo campo de etiqueta de inventario de la compañía
     estado: 'Operativo',
     codigo_emplazamiento: '',
     observaciones: ''
@@ -73,14 +77,13 @@ function App() {
   const [listaUbicaciones, setListaUbicaciones] = useState([]);
   const [listaDispositivos, setListaDispositivos] = useState([]);
 
-  // Estados para la gestión y re-fijación del mapa
   const [centroMapa, setCentroMapa] = useState([40.4168, -3.7038]);
   const [coordenadasModificadas, setCoordenadasModificadas] = useState({ lat: '', lon: '' });
   const [editandoCentro, setEditandoCentro] = useState(false);
 
-  // 1. Cargar configuración inicial
+  // 1. Cargar configuración dinámica desde la API centralizada (/api/config)
   useEffect(() => {
-    axios.get('/config.json')
+    axios.get(`${API_URL}/api/config`)
       .then(res => {
         setConfig(res.data);
         if (res.data.mapas && res.data.mapas.length > 0) {
@@ -99,7 +102,7 @@ function App() {
           }
         }
       })
-      .catch(err => console.error('Error al cargar config.json:', err));
+      .catch(err => console.error('Error al cargar configuración desde la API:', err));
   }, []);
 
   const mapaConfigActual = config?.mapas.find(m => m.id === mapaActivo) || { plantas: [], zonas: [], nombre_visual: '', nombre_mental: '' };
@@ -172,7 +175,6 @@ function App() {
     );
   };
 
-  // Función para capturar GPS e inmediatamente fijarlo como centro del mapa
   const capturarGPSParaMapa = () => {
     if (!navigator.geolocation) {
       alert('La geolocalización no está soportada por tu navegador');
@@ -237,9 +239,20 @@ function App() {
     try {
       await axios.post(`${API_URL}/api/${mapaActivo}/registrar`, dispositivoForm);
       alert('¡Dispositivo registrado con éxito!');
-      setDispositivoForm(prev => ({ ...prev, marca: '', modelo: '', numero_serie: '', observaciones: '' }));
+      setDispositivoForm(prev => ({ ...prev, marca: '', modelo: '', numero_serie: '', etiqueta: '', observaciones: '' }));
     } catch (err) {
       alert('Error al registrar dispositivo');
+    }
+  };
+
+  const validarPinConfig = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_URL}/api/config/validar`, { pin: pinIngresado });
+      setConfigDesbloqueada(true);
+      alert('🔓 Acceso concedido a la configuración.');
+    } catch (err) {
+      alert('❌ PIN incorrecto.');
     }
   };
 
@@ -273,6 +286,7 @@ function App() {
         <button onClick={() => setVista('dispositivo')} style={{ flex: 1, padding: '10px', background: vista === 'dispositivo' ? '#28a745' : '#e0e0e0', color: vista === 'dispositivo' ? 'white' : '#333', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>2. Dispositivos</button>
         <button onClick={() => setVista('resumen')} style={{ flex: 1, padding: '10px', background: vista === 'resumen' ? '#6c757d' : '#e0e0e0', color: vista === 'resumen' ? 'white' : '#333', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>📋 Resumen</button>
         <button onClick={() => setVista('mapa')} style={{ flex: 1, padding: '10px', background: vista === 'mapa' ? '#17a2b8' : '#e0e0e0', color: vista === 'mapa' ? 'white' : '#333', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>🗺️ Mapa Real</button>
+        <button onClick={() => setVista('config')} style={{ flex: 1, padding: '10px', background: vista === 'config' ? '#343a40' : '#e0e0e0', color: vista === 'config' ? 'white' : '#333', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>⚙️ Config</button>
       </div>
 
       {/* VISTA 1: UBICACIÓN */}
@@ -280,13 +294,12 @@ function App() {
         <form onSubmit={handleUbicacionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <h3>📍 Registrar Emplazamiento ({mapaConfigActual.nombre_mental})</h3>
           <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Código de Emplazamiento (Autogenerado / Referencia):</label>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Código de Emplazamiento:</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input 
                 style={{ flex: 1, padding: '10px', fontSize: '15px', background: '#e9ecef', boxSizing: 'border-box' }} 
                 value={ubicacionForm.codigo_emplazamiento || `${mapaActivo}-${ubicacionForm.planta}-${ubicacionForm.zona}`.toUpperCase()} 
                 onChange={(e) => setUbicacionForm({...ubicacionForm, codigo_emplazamiento: e.target.value})} 
-                placeholder="Ej: NAVE-01-SVR"
                 required 
               />
               <button 
@@ -300,7 +313,6 @@ function App() {
                 🔄 Autogenerar
               </button>
             </div>
-            <span style={{ fontSize: '12px', color: '#666', marginTop: '3px', display: 'block' }}>Se genera basándose en el entorno, planta y zona seleccionados.</span>
           </div>
           <div>
             <label style={{ display: 'block', marginBottom: '5px' }}>Planta:</label>
@@ -341,45 +353,23 @@ function App() {
             </select>
           </div>
 
-          {/* Bloque Conjunto: Terna Geográfica Inseparable (Latitud, Longitud, Altitud) */}
           <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '6px', border: '1px solid #ddd' }}>
             <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>Estado GPS: <strong>{geoStatus}</strong></p>
             <button type="button" onClick={capturarGPS} style={{ width: '100%', padding: '10px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '12px' }}>
               {loadingGeo ? 'Capturando...' : '📍 Capturar Terna GPS Actual'}
             </button>
-
             <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Latitud:</label>
-                <input 
-                  type="text" 
-                  value={ubicacionForm.latitud !== null ? ubicacionForm.latitud : ''} 
-                  onChange={(e) => setUbicacionForm({...ubicacionForm, latitud: e.target.value})}
-                  placeholder="Ej: 40.4168"
-                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-                  required
-                />
+                <input type="text" value={ubicacionForm.latitud !== null ? ubicacionForm.latitud : ''} onChange={(e) => setUbicacionForm({...ubicacionForm, latitud: e.target.value})} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} required />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Longitud:</label>
-                <input 
-                  type="text" 
-                  value={ubicacionForm.longitud !== null ? ubicacionForm.longitud : ''} 
-                  onChange={(e) => setUbicacionForm({...ubicacionForm, longitud: e.target.value})}
-                  placeholder="Ej: -3.7038"
-                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-                  required
-                />
+                <input type="text" value={ubicacionForm.longitud !== null ? ubicacionForm.longitud : ''} onChange={(e) => setUbicacionForm({...ubicacionForm, longitud: e.target.value})} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} required />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Altitud (m):</label>
-                <input 
-                  type="text" 
-                  value={ubicacionForm.altitud !== null ? ubicacionForm.altitud : ''} 
-                  onChange={(e) => setUbicacionForm({...ubicacionForm, altitud: e.target.value})}
-                  placeholder="Ej: 650"
-                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-                />
+                <input type="text" value={ubicacionForm.altitud !== null ? ubicacionForm.altitud : ''} onChange={(e) => setUbicacionForm({...ubicacionForm, altitud: e.target.value})} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
               </div>
             </div>
           </div>
@@ -408,7 +398,7 @@ function App() {
             >
               {listaUbicaciones.map((ub, idx) => (
                 <option key={idx} value={ub.codigo_emplazamiento}>
-                  {ub.codigo_emplazamiento} ({ub.planta} - {ub.zona}) [Lat: {ub.latitud?.toFixed(4)}, Lon: {ub.longitud?.toFixed(4)}]
+                  {ub.codigo_emplazamiento} ({ub.planta} - {ub.zona})
                 </option>
               ))}
             </select>
@@ -437,6 +427,10 @@ function App() {
             <label style={{ display: 'block', marginBottom: '5px' }}>Número de Serie:</label>
             <input style={{ width: '100%', padding: '10px', fontSize: '15px', boxSizing: 'border-box' }} value={dispositivoForm.numero_serie} onChange={(e) => setDispositivoForm({...dispositivoForm, numero_serie: e.target.value})} required />
           </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Etiqueta de Inventario (Compañía):</label>
+            <input style={{ width: '100%', padding: '10px', fontSize: '15px', boxSizing: 'border-box' }} value={dispositivoForm.etiqueta} onChange={(e) => setDispositivoForm({...dispositivoForm, etiqueta: e.target.value})} placeholder="Ej: ETQ-998822" required />
+          </div>
           <button type="submit" style={{ padding: '15px', background: '#28a745', color: 'white', fontSize: '16px', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
             Registrar Dispositivo
           </button>
@@ -447,153 +441,68 @@ function App() {
       {vista === 'resumen' && (
         <div>
           <h3>📋 Resumen de Datos: {mapaConfigActual.nombre_mental}</h3>
-          
           <div style={{ marginBottom: '20px' }}>
             <h4>📍 Emplazamientos Registrados ({listaUbicaciones.length})</h4>
-            {listaUbicaciones.length === 0 ? (
-              <p style={{ color: '#666', fontSize: '14px' }}>No hay emplazamientos registrados en este entorno.</p>
-            ) : (
-              <ul style={{ paddingLeft: '20px', fontSize: '14px' }}>
-                {listaUbicaciones.map((ub, idx) => (
-                  <li key={idx} style={{ marginBottom: '6px' }}>
-                    <strong>{ub.codigo_emplazamiento}</strong> ({ub.planta} - {ub.zona}) &rarr; Lat: {ub.latitud?.toFixed(6)}, Lon: {ub.longitud?.toFixed(6)}
-                  </li>
-                ))}
-              </ul>
-            )}
+            {listaUbicaciones.map((ub, idx) => (
+              <li key={idx}><strong>{ub.codigo_emplazamiento}</strong> ({ub.planta} - {ub.zona})</li>
+            ))}
           </div>
-
           <div>
             <h4>💻 Dispositivos Registrados ({listaDispositivos.length})</h4>
-            {listaDispositivos.length === 0 ? (
-              <p style={{ color: '#666', fontSize: '14px' }}>No hay dispositivos registrados en este entorno.</p>
-            ) : (
-              <ul style={{ paddingLeft: '20px', fontSize: '14px' }}>
-                {listaDispositivos.map((dev, idx) => (
-                  <li key={idx} style={{ marginBottom: '6px' }}>
-                    <strong>{dev.tipo}</strong> {dev.marca} {dev.modelo} (N/S: {dev.numero_serie}) &rarr; Emplazamiento: <code>{dev.codigo_emplazamiento}</code>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {listaDispositivos.map((dev, idx) => (
+              <li key={idx}><strong>{dev.tipo}</strong> {dev.marca} {dev.modelo} [Etq: {dev.etiqueta}] &rarr; <code>{dev.codigo_emplazamiento}</code></li>
+            ))}
           </div>
         </div>
       )}
 
-      {/* VISTA 4: MAPA REAL Y VERIFICACIÓN / FIJACIÓN DE UBICACIÓN */}
+      {/* VISTA 4: MAPA REAL */}
       {vista === 'mapa' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3 style={{ margin: 0 }}>🗺️ Visor de Entorno: {mapaConfigActual.nombre_mental}</h3>
-            <button 
-              onClick={() => setEditandoCentro(!editandoCentro)} 
-              style={{ padding: '6px 12px', background: editandoCentro ? '#6c757d' : '#ffc107', color: '#212529', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              {editandoCentro ? 'Cancelar Calibración' : '⚙️ Recalibrar Ubicación Base'}
-            </button>
-          </div>
-
-          {/* Panel informativo / Verificación de Dirección del Mapa */}
-          <div style={{ background: '#e9ecef', padding: '12px', borderRadius: '6px', marginBottom: '15px', border: '1px solid #ced4da', fontSize: '13px' }}>
-            <p style={{ margin: '0 0 5px 0' }}>
-              <strong>📍 Coordenadas Base Actuales:</strong> {centroMapa[0].toFixed(6)}, {centroMapa[1].toFixed(6)}
-            </p>
-            <p style={{ margin: 0, color: '#555' }}>
-              {listaUbicaciones.length} emplazamientos / {listaDispositivos.length} dispositivos en este entorno.
-            </p>
-          </div>
-
-          {/* Formulario desplegable para ajustar o Fijar la Posición del Mapa */}
-          {editandoCentro && (
-            <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#856404' }}>🎯 Ajustar Posición Central del Mapa</h4>
-              <p style={{ fontSize: '13px', margin: '0 0 10px 0', color: '#856404' }}>
-                Si la dirección actual no es correcta, introduce las nuevas coordenadas o utiliza tu GPS actual para fijar el centro del visor.
-              </p>
-              
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Latitud Base:</label>
-                  <input 
-                    type="text" 
-                    value={coordenadasModificadas.lat} 
-                    onChange={(e) => setCoordenadasModificadas({ ...coordenadasModificadas, lat: e.target.value })}
-                    style={{ width: '100%', padding: '6px', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Longitud Base:</label>
-                  <input 
-                    type="text" 
-                    value={coordenadasModificadas.lon} 
-                    onChange={(e) => setCoordenadasModificadas({ ...coordenadasModificadas, lon: e.target.value })}
-                    style={{ width: '100%', padding: '6px', boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  type="button" 
-                  onClick={capturarGPSParaMapa}
-                  style={{ flex: 1, padding: '8px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  📍 Obtener Posición GPS Actual
-                </button>
-                <button 
-                  type="button" 
-                  onClick={handleGuardarNuevoCentro}
-                  style={{ flex: 1, padding: '8px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  💾 Aplicar y Centrar Mapa
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Contenedor del Mapa */}
           <div style={{ height: '450px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ccc' }}>
             <MapContainer center={centroMapa} zoom={19} maxZoom={20} style={{ height: '100%', width: '100%' }}>
               <ChangeView center={centroMapa} zoom={19} />
               <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={20} />
-
-              {/* Puntos de Emplazamientos */}
-              {listaUbicaciones.map((ub, idx) => {
-                if (ub.latitud === null || ub.longitud === null || isNaN(ub.latitud) || isNaN(ub.longitud)) return null;
-                return (
+              {listaUbicaciones.map((ub, idx) => (
+                ub.latitud && ub.longitud && (
                   <Marker key={`ub-${idx}`} position={[ub.latitud, ub.longitud]} icon={iconoEmplazamiento}>
-                    <Popup>
-                      <div style={{ fontSize: '12px' }}>
-                        <strong style={{ color: '#007bff' }}>📍 EMPLAZAMIENTO</strong><br />
-                        <strong>Código:</strong> {ub.codigo_emplazamiento}<br />
-                        <strong>Planta/Zona:</strong> {ub.planta} - {ub.zona}<br />
-                        <strong>Coordenadas:</strong> {ub.latitud.toFixed(6)}, {ub.longitud.toFixed(6)}
-                      </div>
-                    </Popup>
+                    <Popup><strong>EMP:</strong> {ub.codigo_emplazamiento}</Popup>
                   </Marker>
-                );
-              })}
-
-              {/* Puntos de Dispositivos */}
-              {listaDispositivos.map((dev, idx) => {
-                const ubAsociada = listaUbicaciones.find(u => u.codigo_emplazamiento === dev.codigo_emplazamiento);
-                if (!ubAsociada || ubAsociada.latitud === null || ubAsociada.longitud === null || isNaN(ubAsociada.latitud) || isNaN(ubAsociada.longitud)) return null;
-                return (
-                  <Marker key={`dev-${idx}`} position={[ubAsociada.latitud, ubAsociada.longitud]} icon={iconoDispositivo}>
-                    <Popup>
-                      <div style={{ fontSize: '12px' }}>
-                        <strong style={{ color: '#28a745' }}>💻 DISPOSITIVO</strong><br />
-                        <strong>Tipo:</strong> {dev.tipo}<br />
-                        <strong>Equipo:</strong> {dev.marca} {dev.modelo}<br />
-                        <strong>N/S:</strong> {dev.numero_serie}<br />
-                        <strong>Emplazamiento:</strong> {dev.codigo_emplazamiento}
-                      </div>
-                    </Popup>
-                  </Marker>
-                );
-              })}
+                )
+              ))}
             </MapContainer>
           </div>
+        </div>
+      )}
+
+      {/* VISTA 5: CONFIGURACIÓN ("Toalla al salir de la ducha") */}
+      {vista === 'config' && (
+        <div>
+          <h3>⚙️ Configuración del Sistema (Core)</h3>
+          {!configDesbloqueada ? (
+            <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '6px', border: '1px solid #ddd', textAlign: 'center' }}>
+              <p>Esta sección está protegida para evitar modificaciones accidentales.</p>
+              <form onSubmit={validarPinConfig} style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '10px' }}>
+                <input 
+                  type="password" 
+                  placeholder="Introduce PIN (por defecto 1234)" 
+                  value={pinIngresado} 
+                  onChange={(e) => setPinIngresado(e.target.value)}
+                  style={{ padding: '8px', fontSize: '14px' }}
+                  required
+                />
+                <button type="submit" style={{ padding: '8px 15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Desbloquear</button>
+              </form>
+            </div>
+          ) : (
+            <div style={{ background: '#e2f0d9', padding: '15px', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
+              <h4 style={{ color: '#155724', marginTop: 0 }}>🔓 Panel de Configuración Maestro Desbloqueado</h4>
+              <p style={{ fontSize: '14px' }}>Aquí gestionaremos próximamente la adición dinámica de tipos de dispositivos, plantas y zonas directamente sobre el fichero del core.</p>
+              <pre style={{ background: '#fff', padding: '10px', fontSize: '12px', overflowX: 'auto', border: '1px solid #ddd' }}>
+                {JSON.stringify(config, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -4,4 +4,8 @@ document
 build
 dist
 node_modules
-data
+data/*
+logs
+sipait.py
+sipait.spec
+
