@@ -138,6 +138,7 @@
         .btn-secondary { background: #e2e8f0; color: var(--text-main); }
         .btn-accent { background: #7c3aed; color: white; }
         .btn-download { background: #0288d1; color: white; }
+        .btn-mail { background: #10b981; color: white; }
         .btn-warning { background: #d97706; color: white; }
 
         #reader {
@@ -220,7 +221,8 @@
             <textarea id="notes" rows="2" placeholder="Notas del emplazamiento..."></textarea>
             
             <button type="button" class="btn btn-primary" onclick="registerEmplazamiento()">💾 Guardar Emplazamiento</button>
-            <button type="button" class="btn btn-download" onclick="exportJSON('emplazamientos')">📥 Descargar JSON de Emplazamientos</button>
+            <button type="button" class="btn btn-download" onclick="exportJSON('emplazamientos')">📥 Descargar JSON</button>
+            <button type="button" class="btn btn-mail" onclick="exportEmail('emplazamientos')">✉️ Enviar por Correo ([SIPAit-Sync])</button>
         </div>
     </div>
 
@@ -275,7 +277,8 @@
             <textarea id="deviceNotes" rows="2" placeholder="Notas sobre el estado del activo..."></textarea>
 
             <button type="button" class="btn btn-primary" onclick="registerDevice()">Registrar Dispositivo</button>
-            <button type="button" class="btn btn-download" onclick="exportJSON('dispositivos')">📥 Descargar JSON de Dispositivos</button>
+            <button type="button" class="btn btn-download" onclick="exportJSON('dispositivos')">📥 Descargar JSON</button>
+            <button type="button" class="btn btn-mail" onclick="exportEmail('dispositivos')">✉️ Enviar por Correo ([SIPAit-Sync])</button>
         </div>
     </div>
 
@@ -283,12 +286,13 @@
     <div class="card">
         <label>Log del Sistema (Sonda):</label>
         <div id="log"></div>
-        <button type="button" class="btn btn-warning" style="margin-top: 8px;" onclick="exportLogs()">📋 Exportar Fichero de Logs JSON</button>
+        <button type="button" class="btn btn-warning" style="margin-top: 8px;" onclick="exportLogs()">📋 Exportar Logs JSON</button>
+        <button type="button" class="btn btn-mail" style="margin-top: 4px;" onclick="exportEmail('logs_sonda')">✉️ Enviar Logs por Correo</button>
     </div>
 
 <script>
     let appConfig = {};
-    let localDatabase = { emplazamientos: [], dispositivos: [] };
+    let localDatabase = { emplazamientos: [], dispositivos: [], logs_sonda: [] };
     let systemLogs = [];
     let html5QrCode = null;
     let scannerIsRunning = false;
@@ -303,6 +307,7 @@
         };
         
         systemLogs.push(logEntry);
+        localDatabase.logs_sonda = systemLogs; // Sincronizamos con la base local para exportación
 
         const logBox = document.getElementById('log');
         const cssClass = level === 'ERROR' ? 'log-error' : (level === 'WARNING' ? 'log-warning' : 'log-info');
@@ -353,8 +358,7 @@
         logMessage(`Código de emplazamiento autonumérico generado: ${generated}`);
     }
 
-    // --- INICIALIZACIÓN Y CONFIGURACIÓN ---
-    // --- INICIALIZACIÓN ADAPTATIVA (Se adapta a la estructura existente del config.json) ---
+    // --- INICIALIZACIÓN ADAPTATIVA ---
     async function init() {
         logMessage("Inicializando sonda adaptativa...", "INFO");
         const configPath = './core/config.json';
@@ -364,17 +368,14 @@
             if (!res.ok) throw new Error("Archivo no accesible");
             
             const data = await res.json();
-            appConfig = data; // Guardamos todo el objeto tal cual viene
+            appConfig = data;
             
             const ctxSelect = document.getElementById('globalContext');
             ctxSelect.innerHTML = '';
             
-            // LÓGICA ADAPTATIVA: Buscamos dónde están los mapas o plantas
-            // Si el JSON tiene una clave 'mapas', la usamos. Si no, intentamos iterar sobre la raíz.
             const source = data.mapas ? data.mapas : data;
             
             Object.keys(source).forEach(k => {
-                // Filtramos para evitar meter claves de configuración técnica (como 'sistema') en el select
                 if (typeof source[k] === 'object') {
                     const opt = document.createElement('option');
                     opt.value = k; 
@@ -387,7 +388,7 @@
             logMessage("Sonda sincronizada con arquitectura de configuración existente.", "INFO");
             
         } catch (e) {
-            logMessage(`AVISO: Error adaptando configuración (${e.message}). Aplicando valores seguros.`, "WARNING");
+            logMessage(`AVISO: Configuración local por defecto cargada.`, "WARNING");
             const ctxSelect = document.getElementById('globalContext');
             ctxSelect.innerHTML = '<option value="Fábrica Valencia">Fábrica Valencia</option><option value="Raquel Casa">Raquel Casa</option>';
             updateAreas();
@@ -422,16 +423,16 @@
     // --- GEOLOCALIZACIÓN ---
     function captureLocation() {
         if (!navigator.geolocation) {
-            alert("Geolocalización no soportada por el navegador.");
+            alert("Geolocalización no soportada.");
             logMessage("Error: Geolocalización no disponible.", "ERROR");
             return;
         }
-        logMessage("Adquiriendo señal GPS con máxima precisión...", "INFO");
+        logMessage("Adquiriendo señal GPS con alta precisión...", "INFO");
         navigator.geolocation.getCurrentPosition(pos => {
             document.getElementById('lat').value = pos.coords.latitude;
             document.getElementById('lon').value = pos.coords.longitude;
             document.getElementById('alt').value = pos.coords.altitude ? pos.coords.altitude : 0.0;
-            logMessage(`Coordenadas capturadas: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
+            logMessage(`Coordenadas GPS: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
         }, err => {
             logMessage(`Error GPS: ${err.message}`, "ERROR");
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -452,7 +453,7 @@
                 config, 
                 (decodedText) => {
                     document.getElementById('deviceSerial').value = decodedText;
-                    logMessage(`Lectura de escáner exitosa: ${decodedText}`, "INFO");
+                    logMessage(`Escaneo de activo exitoso: ${decodedText}`, "INFO");
                     stopScanner();
                 },
                 () => {}
@@ -460,8 +461,8 @@
                 scannerIsRunning = true;
                 logMessage("Cámara de escaneo activada.", "INFO");
             }).catch(err => {
-                logMessage(`Error al iniciar la cámara: ${err}`, "ERROR");
-                alert("No se pudo acceder a la cámara. Revisa los permisos.");
+                logMessage(`Error al iniciar cámara: ${err}`, "ERROR");
+                alert("No se pudo acceder a la cámara.");
                 readerDiv.style.display = 'none';
             });
         } else {
@@ -476,7 +477,7 @@
                 document.getElementById('reader').style.display = 'none';
                 logMessage("Cámara de escaneo desactivada.", "INFO");
             }).catch(err => {
-                logMessage(`Error al detener la cámara: ${err}`, "WARNING");
+                logMessage(`Error al detener cámara: ${err}`, "WARNING");
             });
         }
     }
@@ -508,24 +509,23 @@
         opt.textContent = `${code} (${record.planta} - ${record.zona})`;
         devEmpSelect.appendChild(opt);
 
-        logMessage(`Emplazamiento registrado localmente: [${code}] en ${record.planta}`, "INFO");
-        alert("Emplazamiento registrado correctamente en la memoria de la sonda.");
+        logMessage(`Emplazamiento guardado localmente: [${code}]`, "INFO");
+        alert("Emplazamiento registrado en memoria de la sonda.");
     }
 
     // --- REGISTRO DE DISPOSITIVOS ---
     function registerDevice() {
         const serial = document.getElementById('deviceSerial').value.trim();
         if(!serial) {
-            alert("Introduce o escanea el número de serie / etiqueta.");
-            logMessage("Intento fallido: Número de serie de dispositivo vacío.", "WARNING");
+            alert("Introduce o escanea el número de serie.");
+            logMessage("Intento fallido: Número de serie vacío.", "WARNING");
             return;
         }
 
         const tagCode = document.getElementById('deviceTag').value.trim() || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-        const generatedId = tagCode;
 
         const device = {
-            id_registro: generatedId,
+            id_registro: tagCode,
             tipo: document.getElementById('deviceType').value,
             marca: document.getElementById('deviceMarca').value.trim() || "Genérica",
             modelo: document.getElementById('deviceModelo').value.trim() || "Genérico",
@@ -537,11 +537,10 @@
         };
 
         localDatabase.dispositivos.push(device);
-        logMessage(`Dispositivo registrado: [ID: ${generatedId} | Serie: ${serial} | Emplazamiento: ${device.codigo_emplazamiento}]`, "INFO");
-        alert("Dispositivo registrado con éxito en memoria.");
+        logMessage(`Dispositivo registrado: [ID: ${tagCode} | Serie: ${serial}]`, "INFO");
+        alert("Dispositivo registrado con éxito.");
     }
 
-    // --- AUTOGENERADOR ID DISPOSITIVOS ---
     function autogenerateDeviceCode() {
         const randomNum = Math.floor(1000 + Math.random() * 9000);
         const generated = `INV-2026-${randomNum}`;
@@ -549,7 +548,7 @@
         logMessage(`Código de activo autogenerado: ${generated}`, "INFO");
     }
 
-    // --- EXPORTACIÓN ---
+    // --- EXPORTACIÓN LOCAL (JSON) ---
     function exportJSON(tipo) {
         const dataArray = localDatabase[tipo];
         if (!dataArray || dataArray.length === 0) {
@@ -565,7 +564,7 @@
         };
 
         downloadJSON(dataStructure, `sipait_${tipo}_${Date.now()}.json`);
-        logMessage(`Exportados ${dataArray.length} registros de ${tipo} a JSON.`, "INFO");
+        logMessage(`Exportados ${dataArray.length} registros de ${tipo}.`, "INFO");
     }
 
     function downloadJSON(jsonObject, fileName) {
@@ -576,6 +575,30 @@
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
+    }
+
+    // --- NUEVO: EXPORTACIÓN Y ENVÍO POR CORREO (MAIL-GATEWAY) ---
+    function exportEmail(tipo) {
+        const dataArray = localDatabase[tipo];
+        if (!dataArray || dataArray.length === 0) {
+            alert(`No hay registros de ${tipo} para enviar por correo.`);
+            return;
+        }
+
+        const dataStructure = {
+            export_type: tipo,
+            export_timestamp: new Date().toISOString(),
+            total_records: dataArray.length,
+            records: dataArray
+        };
+
+        const jsonString = JSON.stringify(dataStructure, null, 4);
+        const subject = encodeURIComponent(`[SIPAit-Sync] Paquete de ${tipo.toUpperCase()}`);
+        const body = encodeURIComponent(`Hola,\n\nAdjunto o copiado el paquete de sincronización de ${tipo} generado por la sonda móvil:\n\n${jsonString}`);
+
+        // Abrir cliente de correo nativo del dispositivo (Android/PC)
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        logMessage(`Pasarela de correo invocada para el paquete: ${tipo}`, "INFO");
     }
 
     window.onload = init;

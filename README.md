@@ -13,27 +13,40 @@ Verificamos que ambos servidores funcionan
 ## CRONOGRAMA
 
 - Refactorización
-    - Creación de directorio core/
-    - Traslado de SIPAit/frontend/config.json a SIPAit/core/ centralizando rutas| valores| y otras configuraciones
+    - [x] Creación de directorio core/
+    - [x] Traslado de SIPAit/frontend/config.json a SIPAit/core/ centralizando rutas| valores| y otras configuraciones
 
 - Sistema de log en la base y en la sonda
+    - [ ] Verificar implantación sistema log de la base
+    - [ ] Verificar implantación sistema log en la sonda
 
 - Estandarización de nombres
-    - Campos en emplazamientos
-    - Campos en ubicaciones
-    - Campos en dispositivos
+    - [ ] Campos en emplazamientos
+    - [ ] Campos en ubicaciones
+    - [ ] Campos en dispositivos
 
-- Sincronización de ficheros ya ubicados manualmente en SIPAit/data/usb
-    - Pruebas de sincronización
-
-- Sistema de log en la base y en la sonda
 - Sincronización automática sonda a base
-- Sincronización datos sonda en datos base
+    - [ ] Conexión entre equipo y smartphone
+    - [ ] Extracción de ficheros y ubicación en destino
+        - Definir origen y destino claramente
+    - [ ] Verificación de la extracción y logs del mismo
+    - [ ] Informe visual de la extración finalizada correctamente
+
+- Sincronización datos sonda en datos base SIPAit/data/usb
+    - [ ] Conteo pre sincronización
+        - [ ] Registros en base total
+        - [ ] Registros que va a recibir de la sonda
+        - [ ] Autorización humana
+        - [ ] Backup previo
+        - [ ] Sincronización
+        - [ ] Informe visual y registro log de la sincronización
+        - [ ] Backup final operación de sincronización correcta
+        - [ ] Verificación humana
+    - [ ] Pruebas de sincronización
 
 - Interfaz sonda| incluir mapa
 - Interfaz sonda| incluir opciones
     - Opción generar dosier fotográfico (para emplazamientos y dispositivos)
-
 
 ## VALORES Y NOMBRE DE CAMPOS ESTANDARIZADOS
 
