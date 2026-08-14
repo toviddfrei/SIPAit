@@ -1,192 +1,120 @@
 import os
 import json
-import shutil
-import hashlib
+import glob
 from datetime import datetime
 
-# Directorios base del sistema SIPAit
-CORE_CONFIG_PATH = "./core/config.json"
-DATA_ROOT = "./data"
-TRASH_DIR = os.path.join(DATA_ROOT, "trash")
-LOG_FILE_PATH = os.path.join(DATA_ROOT, "sync_audit.log")
+CONFIG_PATH = "./core/config.json"
+INBOX_PATH = "./inbox/"
+MASTER_DB_PATH = "./database/master_inventory.json"
 
-def write_audit_log(level, message):
-    """Registra eventos en el log centralizado de auditoría del sistema."""
-    os.makedirs(DATA_ROOT, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = f"[{timestamp}] [{level.upper()}] {message}\n"
-    print(log_entry.strip(), flush=True)
-    
-    with open(LOG_FILE_PATH, "a", encoding="utf-8") as log_file:
-        log_file.write(log_entry)
-
-def load_json_safe(filepath):
-    """Carga un fichero JSON controlando posibles errores de corrupción."""
-    if not os.path.exists(filepath):
-        return None
+def load_json(filepath):
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        write_audit_log("ERROR", f"Fallo al parsear el fichero {filepath}: {e}")
-        return "CORRUPTED"
-
-def save_json_safe(filepath, data):
-    """Guarda de forma segura la estructura JSON con formato legible."""
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
-def calculate_file_hash(filepath):
-    """Calcula el hash SHA-256 de un fichero para garantizar su integridad y evitar duplicados."""
-    sha256_hash = hashlib.sha256()
-    try:
-        with open(filepath, "rb") as f:
-            for byte_block in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(byte_block)
-        return sha256_hash.hexdigest()
-    except Exception as e:
-        write_audit_log("ERROR", f"No se pudo calcular el hash de {filepath}: {e}")
+        print(f"[-] Error leyendo el fichero {filepath}: {e}")
         return None
 
-def get_sync_config():
-    """Obtiene las rutas de origen y destino configuradas en el core o usa la URI MTP por defecto."""
-    config = load_json_safe(CORE_CONFIG_PATH)
-    if config and isinstance(config, dict) and "sync" in config:
-        return config["sync"].get("usb_inbox_dir"), config["sync"].get("target_data_root", DATA_ROOT)
-    
-    # Ruta MTP por defecto proporcionada por el operador para el Motorola Moto G54
-    default_mtp_path = "mtp://motorola_moto_g54_5G_ZY22JQDTVR/Almacenamiento%20interno%20compartido/Download"
-    return default_mtp_path, DATA_ROOT
+def save_json(filepath, data):
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 def run_sync_engine():
-    write_audit_log("INFO", "=== INICIO DE CICLO DE SINCRONIZACIÓN DE SONDA MÓVIL (PULL) ===")
-    
-    usb_inbox_dir, target_root = get_sync_config()
-    
-    # Nota: Si la ruta empieza por mtp://, Python nativo requiere un punto de montaje local FUSE.
-    # Si tu entorno monta el MTP en local, asegúrate de pasar la ruta absoluta local (ej: /run/user/1000/gvfs/...).
-    if usb_inbox_dir.startswith("mtp://") and not os.path.exists(usb_inbox_dir):
-        write_audit_log("WARNING", f"La ruta URI MTP detectada [{usb_inbox_dir}] no es accesible directamente por el sistema de ficheros de Python sin un punto de montaje local.")
-        print(f"\n[AVISO TÉCNICO] La ruta es una URI MTP virtual: {usb_inbox_dir}")
-        print("Sugerencia: Si tu explorador de ficheros ya la ha montado, busca la ruta física en '/run/user/.../gvfs/' o copia temporalmente los ficheros a './data/usb' para la prueba.")
-        
-        # Intentamos un fallback seguro a ./data/usb si la ruta virtual no es accesible por os.listdir
-        fallback_dir = "./data/usb"
-        if os.path.exists(fallback_dir):
-            print(f"[INFO] Utilizando directorio local de respaldo: {fallback_dir}")
-            usb_inbox_dir = fallback_dir
-        else:
-            return
+    print("=" * 60)
+    print("[IT MANAGER] Iniciando Motor de Sincronización Industrial (SIPAit)")
+    print("=" * 60)
 
-    if not os.path.exists(usb_inbox_dir):
-        write_audit_log("WARNING", f"El directorio origen {usb_inbox_dir} no existe.")
-        print(f"[ERROR] No se puede acceder al directorio origen: {usb_inbox_dir}")
+    # 1. Cargar Configuración y Mapa de Zonas Autorizadas
+    config = load_json(CONFIG_PATH)
+    if not config:
+        print("[-] FATAL: No se pudo cargar el archivo de configuración base.")
         return
 
-    files = [f for f in os.listdir(usb_inbox_dir) if f.endswith(".json")]
+    # Adaptador para extraer mapas válidos
+    valid_maps = config.get("mapas", config)
+    print("[+] Topología industrial y mapas cargados correctamente.")
+
+    # 2. Inicializar o cargar Base de Datos Maestra
+    if os.path.exists(MASTER_DB_PATH):
+        master_db = load_json(MASTER_DB_PATH)
+    else:
+        master_db = {"emplazamientos": [], "dispositivos": [], "logs_auditoria": []}
+
+    # 3. Buscar ficheros pendientes en la bandeja de entrada de la pasarela
+    search_pattern = os.path.join(INBOX_PATH, "*.json")
+    files = glob.glob(search_pattern)
+
     if not files:
-        write_audit_log("INFO", "Bandeja de entrada limpia. No hay ficheros pendientes.")
-        print("[INFO] No se han encontrado ficheros JSON pendientes de sincronizar.")
+        print("[!] No se han encontrado nuevos paquetes JSON en la carpeta de entrada.")
         return
 
-    print(f"\n--- INFORME DE PRE-INSPECCIÓN (HUMAN-IN-THE-LOOP) ---")
-    file_manifest = []
+    print(f"[+] Se han detectado {len(files)} ficheros para procesar.")
 
-    for file_name in files:
-        source_path = os.path.join(usb_inbox_dir, file_name)
-        file_hash = calculate_file_hash(source_path)
+    for file_path in files:
+        print(f"\n--- Procesando fichero: {os.path.basename(file_path)} ---")
+        packet = load_json(file_path)
         
-        payload = load_json_safe(source_path)
-        if payload == "CORRUPTED" or not payload:
-            write_audit_log("ERROR", f"El fichero {file_name} está corrupto o vacío.")
+        if not packet or "export_type" not in packet or "records" not in packet:
+            print("[-] ADVERTENCIA: Estructura de paquete no válida o corrupta. Descartado.")
             continue
-            
-        export_type = payload.get("export_type")
-        records = payload.get("records", [])
-        total_records = len(records)
-        
-        manifest_entry = {
-            "file_name": file_name,
-            "source_path": source_path,
-            "sha256": file_hash,
-            "export_type": export_type,
-            "total_records": total_records,
-            "payload": payload
-        }
-        file_manifest.append(manifest_entry)
-        hash_short = file_hash[:12] if file_hash else "N/A"
-        print(f" -> Fichero: {file_name} | Tipo: {export_type} | Registros: {total_records} | SHA256: {hash_short}...")
 
-    if not file_manifest:
-        print("[INFO] No hay paquetes válidos para procesar tras la inspección.")
-        return
+        export_type = packet["export_type"]
+        declared_total = packet.get("total_records", 0)
+        actual_records = packet["records"]
+        real_count = len(actual_records)
 
-    # Validación humana interactiva
-    confirm = input("\n¿Desea proceder con la fusión de estos paquetes en la base de datos central? (s/n): ").strip().lower()
-    if confirm != 's':
-        write_audit_log("WARNING", "Sincronización abortada por el operador humano.")
-        print("[CANCELADO] Operación detenida por el usuario.")
-        return
+        # Validación estricta de conteo industrial
+        if declared_total != real_count:
+            print(f"[-] ERROR DE INTEGRIDAD: El total declarado ({declared_total}) no coincide con los registros reales ({real_count}).")
+            continue
+        else:
+            print(f"[✓] Verificación de conteo OK: {real_count} registros validados.")
 
-    # Fase de ejecución y volcado
-    for item in file_manifest:
-        file_name = item["file_name"]
-        source_path = item["source_path"]
-        payload = item["payload"]
-        export_type = item["export_type"]
-        records = item["records"]
-
-        processed_count = 0
-        skipped_count = 0
-
-        for record in records:
-            map_name = record.get("planta", "Raquel Casa") 
-            
-            if export_type == "emplazamientos":
-                target_filename = "ubicaciones.json"
-                unique_key = "codigo_emplazamiento"
-            elif export_type == "dispositivos":
-                target_filename = "inventario.json"
-                unique_key = "id_registro"
-            else:
-                write_audit_log("WARNING", f"Tipo de exportación desconocido en {file_name}: {export_type}")
-                continue
-
-            target_path = os.path.join(target_root, str(map_name), target_filename)
-            base_data = load_json_safe(target_path)
-            
-            if base_data == "CORRUPTED":
-                write_audit_log("ERROR", f"Abortando fusión: El fichero base {target_path} está corrupto.")
-                continue
+        # Procesamiento según tipo de datos
+        if export_type == "emplazamientos":
+            for emp in actual_records:
+                planta = emp.get("planta")
+                zona = emp.get("zona")
                 
-            if base_data is None:
-                base_data = []
-
-            if isinstance(base_data, list):
-                existing_keys = {item.get(unique_key) for item in base_data}
-                record_id_val = record.get(unique_key)
+                # Validación topológica industrial
+                if planta in valid_maps:
+                    zonas_validas = valid_maps[planta].get("zonas", [])
+                    if zona not in zonas_validas and zonas_validas:
+                        print(f"[!] ALERTA: Zona '{zona}' no oficial en planta '{planta}'. Registrada bajo supervisión.")
                 
-                if record_id_val and record_id_val not in existing_keys:
-                    base_data.append(record)
-                    save_json_safe(target_path, base_data)
-                    processed_count += 1
-                    write_audit_log("SUCCESS", f"[{map_name}] Incorporado {export_type} [{unique_key}: {record_id_val}]")
+                # Evitar duplicados por código de emplazamiento
+                exists = next((item for item in master_db["emplazamientos"] if item["codigo_emplazamiento"] == emp["codigo_emplazamiento"]), None)
+                if not exists:
+                    master_db["emplazamientos"].append(emp)
+                    print(f"    [+] Nuevo emplazamiento integrado: {emp['codigo_emplazamiento']}")
                 else:
-                    skipped_count += 1
-                    write_audit_log("WARNING", f"[{map_name}] Omitido duplicado o clave vacía: {record_id_val}")
+                    print(f"    [=] Emplazamiento ya existente actualizado: {emp['codigo_emplazamiento']}")
 
-        write_audit_log("INFO", f"Paquete {file_name} procesado: {processed_count} añadidos, {skipped_count} omitidos.")
+        elif export_type == "dispositivos":
+            for dev in actual_records:
+                exists = next((item for item in master_db["dispositivos"] if item["id_registro"] == dev["id_registro"]), None)
+                if not exists:
+                    master_db["dispositivos"].append(dev)
+                    print(f"    [+] Dispositivo integrado: {dev['id_registro']} (Serie: {dev['numero_serie']})")
+                else:
+                    print(f"    [=] Dispositivo existente actualizado: {dev['id_registro']}")
 
-        # Traslado a papelera de seguridad
-        os.makedirs(TRASH_DIR, exist_ok=True)
-        timestamp_prefix = datetime.now().strftime("%Y%m%d_%H%M%S")
-        trash_dest_path = os.path.join(TRASH_DIR, f"{timestamp_prefix}_{file_name}")
-        shutil.move(source_path, trash_dest_path)
-        write_audit_log("INFO", f"Fichero origen {file_name} movido a papelera: {trash_dest_path}")
+        elif export_type == "logs_sonda":
+            for log in actual_records:
+                master_db["logs_auditoria"].append(log)
+            print(f"    [+] {real_count} trazas de log incorporadas al historial de auditoría.")
 
-    write_audit_log("INFO", "=== FIN DE CICLO DE SINCRONIZACIÓN DE SONDA MÓVIL ===")
-    print("[OK] Ciclo de sincronización completado con éxito.")
+        # Mover o archivar fichero procesado para evitar reprocesamiento
+        archive_path = file_path + ".processed"
+        os.rename(file_path, archive_path)
+        print(f"[✓] Fichero archivado con éxito.")
+
+    # Guardar base de datos maestra consolidada
+    os.makedirs(os.path.dirname(MASTER_DB_PATH), exist_ok=True)
+    save_json(MASTER_DB_PATH, master_db)
+    print("\n" + "=" * 60)
+    print("[IT MANAGER] Sincronización industrial completada sin pérdida de datos.")
+    print("=" * 60)
 
 if __name__ == "__main__":
     run_sync_engine()

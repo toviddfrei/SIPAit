@@ -21,13 +21,6 @@ const iconoEmplazamiento = L.divIcon({
   iconAnchor: [8, 16],
 });
 
-const iconoDispositivo = L.divIcon({
-  className: 'custom-device',
-  html: '<div style="background-color: #28a745; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.6); border-radius: 50%;" title="Dispositivo"></div>',
-  iconSize: [14, 14],
-  iconAnchor: [7, 14],
-});
-
 const API_URL = 'http://localhost:8000';
 
 function ChangeView({ center, zoom }) {
@@ -53,6 +46,7 @@ function App() {
   const [configDesbloqueada, setConfigDesbloqueada] = useState(false);
 
   const [ubicacionForm, setUbicacionForm] = useState({
+    codigo_emplazamiento: '',
     planta: '',
     zona: '',
     latitud: null,
@@ -64,11 +58,12 @@ function App() {
   const [loadingGeo, setLoadingGeo] = useState(false);
 
   const [dispositivoForm, setDispositivoForm] = useState({
+    id_registro: '',
     tipo: 'PC Sobremesa',
     marca: '',
     modelo: '',
     numero_serie: '',
-    etiqueta: '', // <-- Nuevo campo de etiqueta de inventario de la compañía
+    etiqueta: '', 
     estado: 'Operativo',
     codigo_emplazamiento: '',
     observaciones: ''
@@ -79,7 +74,9 @@ function App() {
 
   const [centroMapa, setCentroMapa] = useState([40.4168, -3.7038]);
   const [coordenadasModificadas, setCoordenadasModificadas] = useState({ lat: '', lon: '' });
-  const [editandoCentro, setEditandoCentro] = useState(false);
+
+  // Estado para la gestión industrial de lotes y papelera automática
+  const [ficherosParaImportar, setFicherosParaImportar] = useState([]);
 
   // 1. Cargar configuración dinámica desde la API centralizada (/api/config)
   useEffect(() => {
@@ -89,11 +86,22 @@ function App() {
         if (res.data.mapas && res.data.mapas.length > 0) {
           const primerMapa = res.data.mapas[0];
           setMapaActivo(primerMapa.id);
+          const anioActual = new Date().getFullYear();
+          const autoEmpId = `EMP-${anioActual}-${String(1).padStart(4, '0')}`;
+          const autoInvId = `INV-${anioActual}-${String(1).padStart(4, '0')}`;
+
           setUbicacionForm(prev => ({
             ...prev,
+            codigo_emplazamiento: autoEmpId,
             planta: primerMapa.plantas[0] || '',
             zona: primerMapa.zonas[0] || ''
           }));
+          
+          setDispositivoForm(prev => ({
+            ...prev,
+            id_registro: autoInvId
+          }));
+
           if (primerMapa.latitud_base && primerMapa.longitud_base) {
             const lat = Number(primerMapa.latitud_base);
             const lon = Number(primerMapa.longitud_base);
@@ -111,11 +119,22 @@ function App() {
     setMapaActivo(nuevoMapaId);
     const mapaSeleccionado = config?.mapas.find(m => m.id === nuevoMapaId);
     if (mapaSeleccionado) {
+      const anioActual = new Date().getFullYear();
+      const autoEmpId = `EMP-${anioActual}-${String(listaUbicaciones.length + 1).padStart(4, '0')}`;
+      const autoInvId = `INV-${anioActual}-${String(listaDispositivos.length + 1).padStart(4, '0')}`;
+
       setUbicacionForm(prev => ({
         ...prev,
+        codigo_emplazamiento: autoEmpId,
         planta: mapaSeleccionado.plantas[0] || '',
         zona: mapaSeleccionado.zonas[0] || ''
       }));
+
+      setDispositivoForm(prev => ({
+        ...prev,
+        id_registro: autoInvId
+      }));
+
       if (mapaSeleccionado.latitud_base && mapaSeleccionado.longitud_base) {
         const lat = Number(mapaSeleccionado.latitud_base);
         const lon = Number(mapaSeleccionado.longitud_base);
@@ -137,6 +156,15 @@ function App() {
           longitud: ub.longitud !== null && ub.longitud !== undefined ? Number(ub.longitud) : null
         }));
         setListaUbicaciones(ubsValidada);
+        
+        const anioActual = new Date().getFullYear();
+        const autoEmpId = `EMP-${anioActual}-${String(ubsValidada.length + 1).padStart(4, '0')}`;
+        
+        setUbicacionForm(prev => ({
+          ...prev,
+          codigo_emplazamiento: autoEmpId
+        }));
+
         if (ubsValidada.length > 0 && !dispositivoForm.codigo_emplazamiento) {
           setDispositivoForm(prev => ({ ...prev, codigo_emplazamiento: ubsValidada[0].codigo_emplazamiento }));
         }
@@ -144,7 +172,12 @@ function App() {
       .catch(err => console.error('Error al cargar ubicaciones:', err));
 
     axios.get(`${API_URL}/api/${mapaActivo}/inventario`)
-      .then(res => setListaDispositivos(res.data))
+      .then(res => {
+        setListaDispositivos(res.data);
+        const anioActual = new Date().getFullYear();
+        const autoInvId = `INV-${anioActual}-${String(res.data.length + 1).padStart(4, '0')}`;
+        setDispositivoForm(prev => ({ ...prev, id_registro: autoInvId }));
+      })
       .catch(err => console.error('Error al cargar inventario:', err));
   }, [vista, mapaActivo]);
 
@@ -163,7 +196,7 @@ function App() {
         const alt = pos.coords.altitude ? Number(pos.coords.altitude) : null;
         const precision = pos.coords.accuracy;
 
-        setUbicacionForm({ ...ubicacionForm, latitud: lat, longitud: lon, altitud: alt });
+        setUbicacionForm(prev => ({ ...prev, latitud: lat, longitud: lon, altitud: alt }));
         setLoadingGeo(false);
         setGeoStatus(`OK [±${precision.toFixed(1)}m] (${lat.toFixed(6)}, ${lon.toFixed(6)})`);
       },
@@ -173,37 +206,6 @@ function App() {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
-  };
-
-  const capturarGPSParaMapa = () => {
-    if (!navigator.geolocation) {
-      alert('La geolocalización no está soportada por tu navegador');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = Number(pos.coords.latitude);
-        const lon = Number(pos.coords.longitude);
-        setCentroMapa([lat, lon]);
-        setCoordenadasModificadas({ lat: lat.toString(), lon: lon.toString() });
-      },
-      (err) => alert('Error GPS: ' + err.message),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  };
-
-  const handleGuardarNuevoCentro = () => {
-    const nuevaLat = parseFloat(coordenadasModificadas.lat);
-    const nuevaLon = parseFloat(coordenadasModificadas.lon);
-
-    if (isNaN(nuevaLat) || isNaN(nuevaLon)) {
-      alert('⚠️ Introduce coordenadas numéricas válidas.');
-      return;
-    }
-
-    setCentroMapa([nuevaLat, nuevaLon]);
-    setEditandoCentro(false);
-    alert('📍 Ubicación base del mapa actualizada correctamente.');
   };
 
   const handleUbicacionSubmit = async (e) => {
@@ -220,8 +222,13 @@ function App() {
       };
       await axios.post(`${API_URL}/api/${mapaActivo}/ubicaciones`, payload);
       alert('¡Emplazamiento registrado con éxito!');
+      
+      const anioActual = new Date().getFullYear();
+      const nuevoAutoId = `EMP-${anioActual}-${String(listaUbicaciones.length + 2).padStart(4, '0')}`;
+
       setUbicacionForm(prev => ({
         ...prev,
+        codigo_emplazamiento: nuevoAutoId,
         latitud: null,
         longitud: null,
         altitud: null,
@@ -239,7 +246,19 @@ function App() {
     try {
       await axios.post(`${API_URL}/api/${mapaActivo}/registrar`, dispositivoForm);
       alert('¡Dispositivo registrado con éxito!');
-      setDispositivoForm(prev => ({ ...prev, marca: '', modelo: '', numero_serie: '', etiqueta: '', observaciones: '' }));
+
+      const anioActual = new Date().getFullYear();
+      const nuevoAutoId = `INV-${anioActual}-${String(listaDispositivos.length + 2).padStart(4, '0')}`;
+
+      setDispositivoForm(prev => ({ 
+        ...prev, 
+        id_registro: nuevoAutoId,
+        marca: '', 
+        modelo: '', 
+        numero_serie: '', 
+        etiqueta: '', 
+        observaciones: '' 
+      }));
     } catch (err) {
       alert('Error al registrar dispositivo');
     }
@@ -253,6 +272,69 @@ function App() {
       alert('🔓 Acceso concedido a la configuración.');
     } catch (err) {
       alert('❌ PIN incorrecto.');
+    }
+  };
+
+  // Manejador de pre-validación de lotes
+  const handlePreValidarFicheros = async (event) => {
+    const files = Array.from(event.target.files);
+    if (!files || files.length === 0) return;
+    
+    const resultados = [];
+
+    for (const file of files) {
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const esValido = json && json.export_type && Array.isArray(json.records);
+        
+        resultados.push({ 
+          name: file.name, 
+          path: file.webkitRelativePath || file.name, 
+          valido: esValido, 
+          data: json, 
+          count: esValido ? json.records.length : 0,
+          error: esValido ? null : "Estructura JSON no reconocida por SIPAit" 
+        });
+      } catch (e) {
+        resultados.push({ 
+          name: file.name, 
+          path: file.name,
+          valido: false, 
+          error: "Error de sintaxis JSON o archivo corrupto" 
+        });
+      }
+    }
+    setFicherosParaImportar(resultados);
+  };
+
+  // Manejador de confirmación, volcado y envío a papelera por mapa
+  const handleConfirmarImportacionLotes = async () => {
+    try {
+      let totalNuevos = 0;
+      
+      for (const fichero of ficherosParaImportar) {
+        if (fichero.valido && fichero.data) {
+          const payloadConRuta = {
+            ...fichero.data,
+            source_file_path: fichero.path
+          };
+
+          const response = await axios.post(
+            `${API_URL}/api/${mapaActivo}/sincronizar-lote`, 
+            payloadConRuta
+          );
+          if (response.data && response.data.nuevos_agregados) {
+            totalNuevos += response.data.nuevos_agregados;
+          }
+        }
+      }
+
+      alert(`✅ Sincronización masiva completada con éxito. Total registros añadidos: ${totalNuevos}`);
+      setFicherosParaImportar([]); 
+      setTimeout(() => window.location.reload(), 500); 
+    } catch (err) {
+      alert('❌ Error durante el volcado al sistema: ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -294,23 +376,24 @@ function App() {
         <form onSubmit={handleUbicacionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <h3>📍 Registrar Emplazamiento ({mapaConfigActual.nombre_mental})</h3>
           <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Código de Emplazamiento:</label>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Código de Emplazamiento (Autogenerado):</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input 
-                style={{ flex: 1, padding: '10px', fontSize: '15px', background: '#e9ecef', boxSizing: 'border-box' }} 
-                value={ubicacionForm.codigo_emplazamiento || `${mapaActivo}-${ubicacionForm.planta}-${ubicacionForm.zona}`.toUpperCase()} 
+                style={{ flex: 1, padding: '10px', fontSize: '15px', background: '#e9ecef', boxSizing: 'border-box', fontWeight: 'bold' }} 
+                value={ubicacionForm.codigo_emplazamiento} 
                 onChange={(e) => setUbicacionForm({...ubicacionForm, codigo_emplazamiento: e.target.value})} 
                 required 
               />
               <button 
                 type="button" 
                 onClick={() => {
-                  const autoId = `${mapaActivo}-${ubicacionForm.planta}-${ubicacionForm.zona}`.toUpperCase().replace(/\s+/g, '_');
+                  const anioActual = new Date().getFullYear();
+                  const autoId = `EMP-${anioActual}-${String(listaUbicaciones.length + 1).padStart(4, '0')}`;
                   setUbicacionForm(prev => ({ ...prev, codigo_emplazamiento: autoId }));
                 }}
                 style={{ padding: '0 15px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
               >
-                🔄 Autogenerar
+                🔄 Recalcular ID
               </button>
             </div>
           </div>
@@ -319,14 +402,7 @@ function App() {
             <select 
               style={{ width: '100%', padding: '10px', fontSize: '15px' }}
               value={ubicacionForm.planta}
-              onChange={(e) => {
-                const nuevaPlanta = e.target.value;
-                setUbicacionForm(prev => {
-                  const nuevoForm = { ...prev, planta: nuevaPlanta };
-                  nuevoForm.codigo_emplazamiento = `${mapaActivo}-${nuevaPlanta}-${prev.zona}`.toUpperCase().replace(/\s+/g, '_');
-                  return nuevoForm;
-                });
-              }}
+              onChange={(e) => setUbicacionForm(prev => ({ ...prev, planta: e.target.value }))}
             >
               {mapaConfigActual.plantas.map((planta, idx) => (
                 <option key={idx} value={planta}>{planta}</option>
@@ -338,14 +414,7 @@ function App() {
             <select 
               style={{ width: '100%', padding: '10px', fontSize: '15px' }}
               value={ubicacionForm.zona}
-              onChange={(e) => {
-                const nuevaZona = e.target.value;
-                setUbicacionForm(prev => {
-                  const nuevoForm = { ...prev, zona: nuevaZona };
-                  nuevoForm.codigo_emplazamiento = `${mapaActivo}-${prev.planta}-${nuevaZona}`.toUpperCase().replace(/\s+/g, '_');
-                  return nuevoForm;
-                });
-              }}
+              onChange={(e) => setUbicacionForm(prev => ({ ...prev, zona: e.target.value }))}
             >
               {mapaConfigActual.zonas.map((zona, idx) => (
                 <option key={idx} value={zona}>{zona}</option>
@@ -389,9 +458,18 @@ function App() {
         <form onSubmit={handleDispositivoSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <h3>💻 Registrar Dispositivo ({mapaConfigActual.nombre_mental})</h3>
           <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>ID de Registro (Autogenerado):</label>
+            <input 
+              style={{ width: '100%', padding: '10px', fontSize: '15px', background: '#e9ecef', boxSizing: 'border-box', fontWeight: 'bold' }} 
+              value={dispositivoForm.id_registro} 
+              onChange={(e) => setDispositivoForm({...dispositivoForm, id_registro: e.target.value})} 
+              required 
+            />
+          </div>
+          <div>
             <label style={{ display: 'block', marginBottom: '5px' }}>Emplazamiento Asociado:</label>
             <select 
-              style={{ width: '100%', padding: '10px', fontSize: '15px', background: '#e9ecef' }}
+              style={{ width: '100%', padding: '10px', fontSize: '15px', background: '#fff' }}
               value={dispositivoForm.codigo_emplazamiento}
               onChange={(e) => setDispositivoForm({...dispositivoForm, codigo_emplazamiento: e.target.value})}
               required
@@ -441,6 +519,50 @@ function App() {
       {vista === 'resumen' && (
         <div>
           <h3>📋 Resumen de Datos: {mapaConfigActual.nombre_mental}</h3>
+          
+          {/* BLOQUE DE IMPORTACIÓN INDUSTRIAL POR MAPA */}
+          <div style={{ marginBottom: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '6px', border: '1px dashed #007bff' }}>
+            <div style={{ textAlign: 'center' }}>
+              <label 
+                htmlFor="file-upload-sipa" 
+                style={{ cursor: 'pointer', display: 'inline-block', padding: '10px 20px', background: '#007bff', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}
+              >
+                📁 Seleccionar Lotes del Móvil [{mapaConfigActual.nombre_mental}]
+              </label>
+              <input 
+                id="file-upload-sipa" 
+                type="file" 
+                multiple 
+                accept=".json" 
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handlePreValidarFicheros(e);
+                }} 
+                style={{ display: 'none' }} 
+              />
+            </div>
+
+            {Array.isArray(ficherosParaImportar) && ficherosParaImportar.length > 0 && (
+              <div style={{ marginTop: '15px', background: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#333' }}>🔍 Verificación Previa y Papelera Automática:</h4>
+                <ul style={{ paddingLeft: '20px', margin: '0 0 15px 0', fontSize: '13px' }}>
+                  {ficherosParaImportar.map((f, idx) => (
+                    <li key={idx} style={{ color: f.valido ? 'green' : 'red', marginBottom: '4px' }}>
+                      <strong>{f.name}</strong> &rarr; {f.valido ? `OK [${f.count} registros listos]` : `⚠️ ${f.error}`}
+                    </li>
+                  ))}
+                </ul>
+                <button 
+                  type="button"
+                  onClick={handleConfirmarImportacionLotes}
+                  style={{ width: '100%', padding: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  🚀 Confirmar, Volcar y Archivar en Papelera
+                </button>
+              </div>
+            )}
+          </div>
+
           <div style={{ marginBottom: '20px' }}>
             <h4>📍 Emplazamientos Registrados ({listaUbicaciones.length})</h4>
             {listaUbicaciones.map((ub, idx) => (
@@ -450,7 +572,7 @@ function App() {
           <div>
             <h4>💻 Dispositivos Registrados ({listaDispositivos.length})</h4>
             {listaDispositivos.map((dev, idx) => (
-              <li key={idx}><strong>{dev.tipo}</strong> {dev.marca} {dev.modelo} [Etq: {dev.etiqueta}] &rarr; <code>{dev.codigo_emplazamiento}</code></li>
+              <li key={idx}><strong>[{dev.id_registro}] {dev.tipo}</strong> {dev.marca} {dev.modelo} [Etq: {dev.etiqueta}] &rarr; <code>{dev.codigo_emplazamiento}</code></li>
             ))}
           </div>
         </div>

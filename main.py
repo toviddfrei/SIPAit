@@ -120,6 +120,7 @@ class UbicacionEntrada(BaseModel):
 
 class DispositivoEntrada(BaseModel):
     model_config = ConfigDict(extra='allow')
+    id_registro: Optional[str] = None
     tipo: str
     marca: str
     modelo: str
@@ -127,7 +128,7 @@ class DispositivoEntrada(BaseModel):
     etiqueta: str
     estado: str
     codigo_emplazamiento: str
-    observaciones: str | None = ""
+    observaciones: Optional[str] = ""
 
 class ValidacionPinEntrada(BaseModel):
     pin: str
@@ -152,11 +153,25 @@ def validar_pin_configuracion(payload: ValidacionPinEntrada):
 @app.post("/api/{mapa}/ubicaciones")
 def registrar_ubicacion(mapa: str, ubicacion: UbicacionEntrada):
     ubicaciones = cargar_datos(mapa, "ubicaciones.json")
-    nuevo_id = f"EMP-{datetime.now().year}-{len(ubicaciones) + 1:04d}"
+    
+    # Unificación con la lógica de la sonda: EMP-YYYY-XXXX estricto
+    nuevo_id = ubicacion.codigo_emplazamiento
+    if not nuevo_id or not str(nuevo_id).startswith("EMP-"):
+        nuevo_id = f"EMP-{datetime.now().year}-{len(ubicaciones) + 1:04d}"
+        
     datos_dict = ubicacion.model_dump()
     datos_dict["codigo_emplazamiento"] = nuevo_id
-    datos_dict["timestamp"] = datetime.now().isoformat()
-    ubicaciones.append(datos_dict)
+    if "timestamp" not in datos_dict or not datos_dict["timestamp"]:
+        datos_dict["timestamp"] = datetime.now().isoformat()
+        
+    # Evitar duplicados exactos por código de emplazamiento si ya existía
+    existente = next((item for item in ubicaciones if item.get("codigo_emplazamiento") == nuevo_id), None)
+    if not existente:
+        ubicaciones.append(datos_dict)
+    else:
+        index = ubicaciones.index(existente)
+        ubicaciones[index] = datos_dict
+
     guardar_datos(mapa, "ubicaciones.json", ubicaciones)
     return {"status": "success", "codigo": nuevo_id}
 
@@ -168,12 +183,88 @@ def registrar_dispositivo_api(mapa: str, dispositivo: DispositivoEntrada):
     ubicaciones = cargar_datos(mapa, "ubicaciones.json")
     if not any(u["codigo_emplazamiento"] == dispositivo.codigo_emplazamiento for u in ubicaciones):
         raise HTTPException(status_code=404, detail="El emplazamiento no existe.")
+        
     inventario = cargar_datos(mapa, "inventario.json")
-    nuevo_id = f"INV-{datetime.now().year}-{len(inventario) + 1:04d}"
-    nuevo_registro = {"id_registro": nuevo_id, "timestamp": datetime.now().isoformat(), **dispositivo.model_dump()}
-    inventario.append(nuevo_registro)
+    
+    # Homogeneización con el autogenerador de la sonda: INV-YYYY-XXXX
+    nuevo_id = dispositivo.id_registro
+    if not nuevo_id or not str(nuevo_id).startswith("INV-"):
+        nuevo_id = f"INV-{datetime.now().year}-{len(inventario) + 1:04d}"
+
+    datos_dict = dispositivo.model_dump()
+    datos_dict["id_registro"] = nuevo_id
+    if "timestamp" not in datos_dict or not datos_dict["timestamp"]:
+        datos_dict["timestamp"] = datetime.now().isoformat()
+
+    existente = next((item for item in inventario if item.get("id_registro") == nuevo_id), None)
+    if not existente:
+        inventario.append(datos_dict)
+    else:
+        index = inventario.index(existente)
+        inventario[index] = datos_dict
+
     guardar_datos(mapa, "inventario.json", inventario)
     return {"status": "success", "id_registro": nuevo_id}
 
 @app.get("/api/{mapa}/inventario")
 def obtener_inventario(mapa: str): return cargar_datos(mapa, "inventario.json")
+
+# --- Endpoints de Sincronización Masiva Local ---
+
+import shutil
+from pathlib import Path
+
+@app.post("/api/{mapa}/sincronizar-lote")
+def sincronizar_lote_datos(mapa: str, payload: dict):
+    """
+    Recibe un lote completo (emplazamientos o dispositivos) desde la sonda
+    y los fusiona de forma segura evitando duplicados. Archiva el origen si procede.
+    """
+    tipo = payload.get("export_type")
+    registros = payload.get("records", [])
+    
+    if not tipo or not isinstance(registros, list):
+        raise HTTPException(status_code=400, detail="Formato de lote no válido.")
+
+    archivo_destino = "ubicaciones.json" if tipo == "emplazamientos" else "inventario.json"
+    datos_actuales = cargar_datos(mapa, archivo_destino)
+    
+    id_key = "codigo_emplazamiento" if tipo == "emplazamientos" else "id_registro"
+    
+    nuevos = 0
+    for reg in registros:
+        reg_id = reg.get(id_key)
+        if not reg_id:
+            continue
+        
+        existente = next((item for item in datos_actuales if item.get(id_key) == reg_id), None)
+        if not existente:
+            datos_actuales.append(reg)
+            nuevos += 1
+        else:
+            index = datos_actuales.index(existente)
+            datos_actuales[index] = reg
+
+    guardar_datos(mapa, archivo_destino, datos_actuales)
+    
+    # --- GESTIÓN DE PAPELERA / ARCHIVADO POR MAPA ---
+    fichero_origen = payload.get("source_file_path")
+    if fichero_origen:
+        try:
+            ruta_origen = Path(fichero_origen)
+            if ruta_origen.exists():
+                ruta_papelera = Path(f"data/{mapa}/papelera")
+                ruta_papelera.mkdir(parents=True, exist_ok=True)
+                
+                destino_papelera = ruta_papelera / ruta_origen.name
+                shutil.move(str(ruta_origen), str(destino_papelera))
+                logger.info(f"Fichero origen {ruta_origen.name} movido a la papelera de [{mapa}].")
+        except Exception as e:
+            logger.warning(f"No se pudo mover el fichero origen a la papelera: {str(e)}")
+
+    logger.info(f"Sincronización masiva en [{mapa}] tipo [{tipo}]: {nuevos} registros nuevos añadidos.")
+    return {
+        "status": "success",
+        "nuevos_agregados": nuevos,
+        "mensaje": f"Sincronización correcta en {mapa}. {nuevos} registros nuevos."
+    }

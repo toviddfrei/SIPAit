@@ -16,52 +16,25 @@
     "Impresora",
     "Switch / Hub",
     "SAI/UPS",
-    "Terminal Móvil / PDA"
+    "Terminal Móvil / PDA",
+    "Router",
+    "Acces Point",
+    "Rack",
+    "Servidor",
+    "Punto red"
   ],
   "mapas": [
     {
-      "id": "Raquel Casa",
-      "nombre_visual": "Casa calle San Juan",
-      "nombre_mental": "Piso Massamagrell",
-      "latitud_base": 39.57049107652184,
-      "longitud_base": -0.3312649976487983,
-      "altitud_base": 19.0,
-      "plantas": ["Uniplanta"],
+      "id": "Default",
+      "nombre_visual": "Domicilio/Ubicación en texto",
+      "nombre_mental": "Referencia visual que presenta la aplicación",
+      "latitud_base": 0,
+      "longitud_base": 0,
+      "altitud_base": 0,
+      "plantas": ["Es una vivienda, es una altura dentro de un edificio"],
       "zonas": [
-        "Comedor",
-        "Despacho",
-        "Habitación grande",
-        "Habitación mediana",
-        "Habitación pequeña"
-      ]
-    },
-    {
-      "id": "Fábrica Valencia",
-      "nombre_visual": "Fábrica Quart de Poblet",
-      "nombre_mental": "Fábrica trabajo",
-      "latitud_base": 39.47424538753385,
-      "longitud_base": -0.5090045013065257,
-      "altitud_base": 77.0,
-      "plantas": ["Sotano", "Planta Baja", "Planta 1"],
-      "zonas": [
-        "Garita Seguridad",
-        "Logística Discana",
-        "Envasado",
-        "Oficinas",
-        "Cocción",
-        "Apolos"
-      ]
-    },
-    {
-      "id": "Daniel Miñana Montero",
-      "nombre_visual": "Mis Emplazamientos/Dispositivos",
-      "nombre_mental": "Mi gestión personal",
-      "latitud_base": 39.57049107652184,
-      "longitud_base": -0.3312649976487983,
-      "altitud_base": 19.0,
-      "plantas": ["Externo", "Investigación", "Dar solución"],
-      "zonas": [
-        "En las anotaciones"
+        "Puede ser un sector",
+        "Puede ser una ubicación en una vivienda"
       ]
     }
   ]
