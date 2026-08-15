@@ -138,6 +138,7 @@
         .btn-secondary { background: #e2e8f0; color: var(--text-main); }
         .btn-accent { background: #7c3aed; color: white; }
         .btn-warning { background: #d97706; color: white; }
+        .btn-success { background: #16a34a; color: white; }
 
         #reader {
             width: 100%;
@@ -219,12 +220,11 @@
             <label>Observaciones:</label>
             <textarea id="notes" rows="2" placeholder="Notas del emplazamiento..."></textarea>
             
-            <!-- Único botón en tarjeta: Registra localmente sin forzar descargas intermedias -->
             <button type="button" class="btn btn-primary" onclick="registerEmplazamiento()">💾 Registrar Emplazamiento</button>
         </div>
     </div>
 
-    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS CON CÁMARA (QR / BARRAS) -->
+    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS CON CÁMARA Y GEOLOCALIZACIÓN -->
     <div id="view-dispositivos" class="view-section">
         <div class="card">
             <h3>Inventario de Dispositivo (Sonda OCR / Escáner)</h3>
@@ -262,16 +262,36 @@
 
             <label>Emplazamiento Asociado:</label>
             <select id="deviceEmplazamientoSelect"></select>
+        </div>
+
+        <!-- Bloque Geográfico independiente para el Dispositivo (Idéntico a Emplazamientos) -->
+        <div class="card">
+            <h3>Geolocalización del Dispositivo</h3>
+            <button type="button" class="btn btn-success" onclick="captureDeviceLocation()">📍 Capturar GPS de Dispositivo</button>
+            
+            <div class="row-group">
+                <div>
+                    <label>Latitud:</label>
+                    <input type="text" id="deviceLat" placeholder="0.000000">
+                </div>
+                <div>
+                    <label>Longitud:</label>
+                    <input type="text" id="deviceLon" placeholder="0.000000">
+                </div>
+                <div>
+                    <label>Altitud (m):</label>
+                    <input type="text" id="deviceAlt" placeholder="0.0">
+                </div>
+            </div>
 
             <label>Observaciones:</label>
             <textarea id="deviceNotes" rows="2" placeholder="Notas sobre el estado del activo..."></textarea>
 
-            <!-- Único botón en tarjeta: Registra localmente -->
             <button type="button" class="btn btn-primary" onclick="registerDevice()">💾 Registrar Dispositivo</button>
         </div>
     </div>
 
-    <!-- Trazabilidad Global y Consola de Logs (Único punto de volcado inferior) -->
+    <!-- Trazabilidad Global y Consola de Logs -->
     <div class="card">
         <label>Log del Sistema (Sonda):</label>
         <div id="log"></div>
@@ -376,7 +396,6 @@
     async function init() {
         logMessage("Inicializando sonda adaptativa...", "INFO");
         
-        // Evitamos caché añadiendo marca de tiempo temporal y directiva no-store
         const configPath = './core/config.json?t=' + new Date().getTime();
         
         const anioActual = new Date().getFullYear();
@@ -416,7 +435,7 @@
             
             updateAreas();
 
-            // 2. Carga dinámica de Tipos de Dispositivos desde config.json
+            // 2. Carga dinámica de Tipos de Dispositivos
             const deviceTypeSelect = document.getElementById('deviceType');
             deviceTypeSelect.innerHTML = '';
             
@@ -438,7 +457,6 @@
             ctxSelect.innerHTML = '<option value="mapa_default">Fábrica Principal</option><option value="mapa_personal">Personal / Portátil</option>';
             updateAreas();
 
-            // Respaldo por defecto para tipos de dispositivos
             const deviceTypeSelect = document.getElementById('deviceType');
             deviceTypeSelect.innerHTML = '';
             ["PC Sobremesa", "Portátil", "Monitor", "Switch", "Impresora", "Servidor", "SAI/UPS"].forEach(t => {
@@ -482,21 +500,39 @@
 
     document.getElementById('globalContext').onchange = updateAreas;
 
-    // --- GEOLOCALIZACIÓN ---
+    // --- GEOLOCALIZACIÓN DE EMPLAZAMIENTOS ---
     function captureLocation() {
         if (!navigator.geolocation) {
             alert("Geolocalización no soportada.");
             logMessage("Error: Geolocalización no disponible.", "ERROR");
             return;
         }
-        logMessage("Adquiriendo señal GPS con alta precisión...", "INFO");
+        logMessage("Adquiriendo señal GPS de emplazamiento con alta precisión...", "INFO");
         navigator.geolocation.getCurrentPosition(pos => {
             document.getElementById('lat').value = pos.coords.latitude;
             document.getElementById('lon').value = pos.coords.longitude;
             document.getElementById('alt').value = pos.coords.altitude ? pos.coords.altitude : 0.0;
-            logMessage(`Coordenadas GPS: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
+            logMessage(`GPS Emplazamiento: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
         }, err => {
-            logMessage(`Error GPS: ${err.message}`, "ERROR");
+            logMessage(`Error GPS Emplazamiento: ${err.message}`, "ERROR");
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
+
+    // --- GEOLOCALIZACIÓN DE DISPOSITIVOS ---
+    function captureDeviceLocation() {
+        if (!navigator.geolocation) {
+            alert("Geolocalización no soportada.");
+            logMessage("Error: Geolocalización no disponible para dispositivo.", "ERROR");
+            return;
+        }
+        logMessage("Adquiriendo señal GPS de dispositivo con alta precisión...", "INFO");
+        navigator.geolocation.getCurrentPosition(pos => {
+            document.getElementById('deviceLat').value = pos.coords.latitude;
+            document.getElementById('deviceLon').value = pos.coords.longitude;
+            document.getElementById('deviceAlt').value = pos.coords.altitude ? pos.coords.altitude : 0.0;
+            logMessage(`GPS Dispositivo: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
+        }, err => {
+            logMessage(`Error GPS Dispositivo: ${err.message}`, "ERROR");
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
@@ -623,13 +659,16 @@
             numero_serie: serial,
             estado: document.getElementById('deviceEstado').value,
             codigo_emplazamiento: document.getElementById('deviceEmplazamientoSelect').value || "EMP-2026-0001",
+            latitud: parseFloat(document.getElementById('deviceLat').value) || null,
+            longitud: parseFloat(document.getElementById('deviceLon').value) || null,
+            altitud: parseFloat(document.getElementById('deviceAlt').value) || null,
             observaciones: document.getElementById('deviceNotes').value.trim(),
             etiqueta: tagCode,
             timestamp: new Date().toISOString()
         };
 
         localDatabase.dispositivos.push(device);
-        logMessage(`Dispositivo registrado en memoria local: [ID: ${tagCode} | Serie: ${serial}]`, "INFO");
+        logMessage(`Dispositivo registrado en memoria local con GPS: [ID: ${tagCode} | Serie: ${serial}]`, "INFO");
         alert("Dispositivo guardado en la sesión local. Usa el botón inferior al terminar para exportar el JSON maestro.");
 
         const anioActual = new Date().getFullYear();
@@ -638,6 +677,9 @@
         document.getElementById('deviceSerial').value = '';
         document.getElementById('deviceMarca').value = '';
         document.getElementById('deviceModelo').value = '';
+        document.getElementById('deviceLat').value = '';
+        document.getElementById('deviceLon').value = '';
+        document.getElementById('deviceAlt').value = '';
         document.getElementById('deviceNotes').value = '';
     }
 

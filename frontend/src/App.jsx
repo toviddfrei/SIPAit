@@ -21,6 +21,14 @@ const iconoEmplazamiento = L.divIcon({
   iconAnchor: [8, 16],
 });
 
+// Icono específico para dispositivos geolocalizados en el mapa
+const iconoDispositivo = L.divIcon({
+  className: 'custom-dispositivo',
+  html: '<div style="background-color: #28a745; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.6); border-radius: 50%;" title="Dispositivo"></div>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 14],
+});
+
 const API_URL = 'http://localhost:8000';
 
 function ChangeView({ center, zoom }) {
@@ -57,6 +65,7 @@ function App() {
   const [geoStatus, setGeoStatus] = useState('No capturada');
   const [loadingGeo, setLoadingGeo] = useState(false);
 
+  // Añadidos campos lat, lon, alt y estado de geo para dispositivos
   const [dispositivoForm, setDispositivoForm] = useState({
     id_registro: '',
     tipo: 'PC Sobremesa',
@@ -66,8 +75,13 @@ function App() {
     etiqueta: '', 
     estado: 'Operativo',
     codigo_emplazamiento: '',
+    latitud: null,
+    longitud: null,
+    altitud: null,
     observaciones: ''
   });
+  const [geoStatusDisp, setGeoStatusDisp] = useState('No capturada');
+  const [loadingGeoDisp, setLoadingGeoDisp] = useState(false);
 
   const [listaUbicaciones, setListaUbicaciones] = useState([]);
   const [listaDispositivos, setListaDispositivos] = useState([]);
@@ -173,9 +187,14 @@ function App() {
 
     axios.get(`${API_URL}/api/${mapaActivo}/inventario`)
       .then(res => {
-        setListaDispositivos(res.data);
+        const dispValidada = res.data.map(dev => ({
+          ...dev,
+          latitud: dev.latitud !== null && dev.latitud !== undefined ? Number(dev.latitud) : null,
+          longitud: dev.longitud !== null && dev.longitud !== undefined ? Number(dev.longitud) : null
+        }));
+        setListaDispositivos(dispValidada);
         const anioActual = new Date().getFullYear();
-        const autoInvId = `INV-${anioActual}-${String(res.data.length + 1).padStart(4, '0')}`;
+        const autoInvId = `INV-${anioActual}-${String(dispValidada.length + 1).padStart(4, '0')}`;
         setDispositivoForm(prev => ({ ...prev, id_registro: autoInvId }));
       })
       .catch(err => console.error('Error al cargar inventario:', err));
@@ -203,6 +222,33 @@ function App() {
       (err) => {
         setLoadingGeo(false);
         setGeoStatus('Error GPS: ' + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  const capturarGPSDispositivo = () => {
+    if (!navigator.geolocation) {
+      alert('La geolocalización no está soportada por tu navegador');
+      return;
+    }
+    setLoadingGeoDisp(true);
+    setGeoStatusDisp('Fijando coordenadas GPS para dispositivo...');
+    
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude);
+        const lon = Number(pos.coords.longitude);
+        const alt = pos.coords.altitude ? Number(pos.coords.altitude) : null;
+        const precision = pos.coords.accuracy;
+
+        setDispositivoForm(prev => ({ ...prev, latitud: lat, longitud: lon, altitud: alt }));
+        setLoadingGeoDisp(false);
+        setGeoStatusDisp(`OK [±${precision.toFixed(1)}m] (${lat.toFixed(6)}, ${lon.toFixed(6)})`);
+      },
+      (err) => {
+        setLoadingGeoDisp(false);
+        setGeoStatusDisp('Error GPS: ' + err.message);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -244,7 +290,14 @@ function App() {
   const handleDispositivoSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_URL}/api/${mapaActivo}/registrar`, dispositivoForm);
+      const payload = {
+        ...dispositivoForm,
+        latitud: dispositivoForm.latitud !== null && dispositivoForm.latitud !== '' ? Number(dispositivoForm.latitud) : null,
+        longitud: dispositivoForm.longitud !== null && dispositivoForm.longitud !== '' ? Number(dispositivoForm.longitud) : null,
+        altitud: dispositivoForm.altitud !== null && dispositivoForm.altitud !== '' ? Number(dispositivoForm.altitud) : null
+      };
+
+      await axios.post(`${API_URL}/api/${mapaActivo}/registrar`, payload);
       alert('¡Dispositivo registrado con éxito!');
 
       const anioActual = new Date().getFullYear();
@@ -257,8 +310,12 @@ function App() {
         modelo: '', 
         numero_serie: '', 
         etiqueta: '', 
+        latitud: null,
+        longitud: null,
+        altitud: null,
         observaciones: '' 
       }));
+      setGeoStatusDisp('No capturada');
     } catch (err) {
       alert('Error al registrar dispositivo');
     }
@@ -509,6 +566,29 @@ function App() {
             <label style={{ display: 'block', marginBottom: '5px' }}>Etiqueta de Inventario (Compañía):</label>
             <input style={{ width: '100%', padding: '10px', fontSize: '15px', boxSizing: 'border-box' }} value={dispositivoForm.etiqueta} onChange={(e) => setDispositivoForm({...dispositivoForm, etiqueta: e.target.value})} placeholder="Ej: ETQ-998822" required />
           </div>
+
+          {/* Bloque Geográfico independiente para el Dispositivo */}
+          <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '6px', border: '1px solid #ddd' }}>
+            <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>Geolocalización del Dispositivo: <strong>{geoStatusDisp}</strong></p>
+            <button type="button" onClick={capturarGPSDispositivo} style={{ width: '100%', padding: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '12px' }}>
+              {loadingGeoDisp ? 'Capturando...' : '📍 Capturar GPS de Dispositivo'}
+            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Latitud:</label>
+                <input type="text" value={dispositivoForm.latitud !== null ? dispositivoForm.latitud : ''} onChange={(e) => setDispositivoForm({...dispositivoForm, latitud: e.target.value})} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Longitud:</label>
+                <input type="text" value={dispositivoForm.longitud !== null ? dispositivoForm.longitud : ''} onChange={(e) => setDispositivoForm({...dispositivoForm, longitud: e.target.value})} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Altitud (m):</label>
+                <input type="text" value={dispositivoForm.altitud !== null ? dispositivoForm.altitud : ''} onChange={(e) => setDispositivoForm({...dispositivoForm, altitud: e.target.value})} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+          </div>
+
           <button type="submit" style={{ padding: '15px', background: '#28a745', color: 'white', fontSize: '16px', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
             Registrar Dispositivo
           </button>
@@ -566,32 +646,51 @@ function App() {
           <div style={{ marginBottom: '20px' }}>
             <h4>📍 Emplazamientos Registrados ({listaUbicaciones.length})</h4>
             {listaUbicaciones.map((ub, idx) => (
-              <li key={idx}><strong>{ub.codigo_emplazamiento}</strong> ({ub.planta} - {ub.zona})</li>
+              <li key={idx}><strong>{ub.codigo_emplazamiento}</strong> ({ub.planta} - {ub.zona}) {ub.latitud && ub.longitud ? '📍 [GPS OK]' : ''}</li>
             ))}
           </div>
           <div>
             <h4>💻 Dispositivos Registrados ({listaDispositivos.length})</h4>
             {listaDispositivos.map((dev, idx) => (
-              <li key={idx}><strong>[{dev.id_registro}] {dev.tipo}</strong> {dev.marca} {dev.modelo} [Etq: {dev.etiqueta}] &rarr; <code>{dev.codigo_emplazamiento}</code></li>
+              <li key={idx}><strong>[{dev.id_registro}] {dev.tipo}</strong> {dev.marca} {dev.modelo} [Etq: {dev.etiqueta}] &rarr; <code>{dev.codigo_emplazamiento}</code> {dev.latitud && dev.longitud ? '📍 [GPS OK]' : ''}</li>
             ))}
           </div>
         </div>
       )}
 
-      {/* VISTA 4: MAPA REAL */}
+      {/* VISTA 4: MAPA REAL (Emplazamientos y Dispositivos fijos) */}
       {vista === 'mapa' && (
         <div>
           <div style={{ height: '450px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ccc' }}>
             <MapContainer center={centroMapa} zoom={19} maxZoom={20} style={{ height: '100%', width: '100%' }}>
               <ChangeView center={centroMapa} zoom={19} />
               <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={20} />
+              
+              {/* Marcadores de Emplazamientos (Azules) */}
               {listaUbicaciones.map((ub, idx) => (
                 ub.latitud && ub.longitud && (
                   <Marker key={`ub-${idx}`} position={[ub.latitud, ub.longitud]} icon={iconoEmplazamiento}>
-                    <Popup><strong>EMP:</strong> {ub.codigo_emplazamiento}</Popup>
+                    <Popup>
+                      <strong>Emplazamiento:</strong> {ub.codigo_emplazamiento}<br/>
+                      Planta: {ub.planta} | Zona: {ub.zona}
+                    </Popup>
                   </Marker>
                 )
               ))}
+
+              {/* Marcadores de Dispositivos (Verdes) */}
+              {listaDispositivos.map((dev, idx) => (
+                dev.latitud && dev.longitud && (
+                  <Marker key={`dev-${idx}`} position={[dev.latitud, dev.longitud]} icon={iconoDispositivo}>
+                    <Popup>
+                      <strong>Dispositivo:</strong> [{dev.id_registro}] {dev.tipo}<br/>
+                      Marca/Modelo: {dev.marca} {dev.modelo}<br/>
+                      Emplazamiento: {dev.codigo_emplazamiento}
+                    </Popup>
+                  </Marker>
+                )
+              ))}
+
             </MapContainer>
           </div>
         </div>

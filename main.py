@@ -128,6 +128,9 @@ class DispositivoEntrada(BaseModel):
     etiqueta: str
     estado: str
     codigo_emplazamiento: str
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    altitud: Optional[float] = None
     observaciones: Optional[str] = ""
 
 class ValidacionPinEntrada(BaseModel):
