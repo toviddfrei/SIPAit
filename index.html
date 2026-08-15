@@ -380,17 +380,19 @@
         logMessage(`Código de activo autogenerado: ${generated}`, "INFO");
     }
 
-    // --- INICIALIZACIÓN ADAPTATIVA ---
+    // --- INICIALIZACIÓN ADAPTATIVA (ACTUALIZADA CONTRA CACHÉ) ---
     async function init() {
         logMessage("Inicializando sonda adaptativa...", "INFO");
-        const configPath = './core/config.json';
+        
+        // Se añade timestamp y directiva no-store para evitar que el navegador guarde en caché el JSON antiguo
+        const configPath = './core/config.json?t=' + new Date().getTime();
         
         const anioActual = new Date().getFullYear();
         document.getElementById('emplazamientoCode').value = `EMP-${anioActual}-0001`;
         document.getElementById('deviceTag').value = `INV-${anioActual}-0001`;
 
         try {
-            const res = await fetch(configPath);
+            const res = await fetch(configPath, { cache: "no-store" });
             if (!res.ok) throw new Error("Archivo no accesible");
             
             const data = await res.json();
@@ -480,7 +482,7 @@
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
-// --- CONTROL Y CIERRE DEL ESCÁNER ---
+    // --- CONTROL Y CIERRE DEL ESCÁNER ---
     function stopScanner() {
         if (html5QrCode && scannerIsRunning) {
             html5QrCode.stop().then(() => {
@@ -500,7 +502,6 @@
 
     // --- ESCÁNER DE CÁMARA ULTRA-SENSIBLE ---
     function toggleScanner() {
-        // Validación previa de seguridad del navegador (HTTPS / localhost obligatorio)
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             alert("El navegador no permite acceder a la cámara (requiere entorno seguro HTTPS o localhost).");
             logMessage("Error crítico: navigator.mediaDevices no soportado en este contexto.", "ERROR");
