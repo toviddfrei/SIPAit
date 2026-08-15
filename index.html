@@ -245,15 +245,7 @@
             <div id="reader"></div>
 
             <label>Tipo de Dispositivo:</label>
-            <select id="deviceType">
-                <option value="PC Sobremesa">PC Sobremesa</option>
-                <option value="Portátil">Portátil</option>
-                <option value="Monitor">Monitor</option>
-                <option value="Switch">Switch</option>
-                <option value="Impresora">Impresora</option>
-                <option value="Servidor">Servidor</option>
-                <option value="SAI/UPS">SAI/UPS</option>
-            </select>
+            <select id="deviceType"></select>
 
             <label>Marca:</label>
             <input type="text" id="deviceMarca" placeholder="Ej: Lenovo, HP, Dell...">
@@ -380,11 +372,11 @@
         logMessage(`Código de activo autogenerado: ${generated}`, "INFO");
     }
 
-    // --- INICIALIZACIÓN ADAPTATIVA (ACTUALIZADA CONTRA CACHÉ) ---
+    // --- INICIALIZACIÓN ADAPTATIVA Y CARGA GLOBAL DESDE CONFIG.JSON ---
     async function init() {
         logMessage("Inicializando sonda adaptativa...", "INFO");
         
-        // Se añade timestamp y directiva no-store para evitar que el navegador guarde en caché el JSON antiguo
+        // Evitamos caché añadiendo marca de tiempo temporal y directiva no-store
         const configPath = './core/config.json?t=' + new Date().getTime();
         
         const anioActual = new Date().getFullYear();
@@ -398,6 +390,7 @@
             const data = await res.json();
             appConfig = data;
             
+            // 1. Carga de Emplazamientos (Mapas / Contextos)
             const ctxSelect = document.getElementById('globalContext');
             ctxSelect.innerHTML = '';
             
@@ -412,7 +405,7 @@
                 });
             } else {
                 Object.keys(source).forEach(k => {
-                    if (typeof source[k] === 'object') {
+                    if (typeof source[k] === 'object' && k !== 'tipos_dispositivos') {
                         const opt = document.createElement('option');
                         opt.value = k; 
                         opt.textContent = source[k].nombre_mental || k;
@@ -422,13 +415,38 @@
             }
             
             updateAreas();
-            logMessage("Sonda sincronizada con arquitectura de configuración existente.", "INFO");
+
+            // 2. Carga dinámica de Tipos de Dispositivos desde config.json
+            const deviceTypeSelect = document.getElementById('deviceType');
+            deviceTypeSelect.innerHTML = '';
+            
+            let tiposList = data.tipos_dispositivos || ["PC Sobremesa", "Portátil", "Monitor", "Switch", "Impresora", "Servidor", "SAI/UPS"];
+            
+            tiposList.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                deviceTypeSelect.appendChild(opt);
+            });
+
+            logMessage("Sonda sincronizada: Configuración global cargada correctamente desde config.json.", "INFO");
             
         } catch (e) {
-            logMessage(`AVISO: Configuración local por defecto cargada.`, "WARNING");
+            logMessage(`AVISO: Error al leer config.json (${e.message}). Usando valores por defecto.`, "WARNING");
+            
             const ctxSelect = document.getElementById('globalContext');
             ctxSelect.innerHTML = '<option value="mapa_default">Fábrica Principal</option><option value="mapa_personal">Personal / Portátil</option>';
             updateAreas();
+
+            // Respaldo por defecto para tipos de dispositivos
+            const deviceTypeSelect = document.getElementById('deviceType');
+            deviceTypeSelect.innerHTML = '';
+            ["PC Sobremesa", "Portátil", "Monitor", "Switch", "Impresora", "Servidor", "SAI/UPS"].forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                deviceTypeSelect.appendChild(opt);
+            });
         }
     }
     
