@@ -283,7 +283,8 @@
     <div class="card">
         <label>Log del Sistema (Sonda):</label>
         <div id="log"></div>
-        <button type="button" class="btn btn-warning" onclick="exportMasterSession()">📦 Exportar Sesión Completa (JSON)</button>
+        <button type="button" class="btn btn-warning" onclick="exportEmplazamientos()">📦 Exportar Lote Emplazamientos (JSON)</button>
+        <button type="button" class="btn btn-accent" onclick="exportDispositivos()">📦 Exportar Lote Inventario (JSON)</button>
     </div>
 
 <script>
@@ -312,26 +313,37 @@
         logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // --- FUNCIÓN ÚNICA MAESTRA DE EXPORTACIÓN INFERIOR ---
-    function exportMasterSession() {
-        if (localDatabase.emplazamientos.length === 0 && localDatabase.dispositivos.length === 0) {
-            alert("No hay registros de emplazamientos ni dispositivos para exportar.");
-            logMessage("Intento de exportación maestro vacío.", "WARNING");
+    // --- FUNCIONES DE EXPORTACIÓN ADAPTADAS AL CONTRATO DEL BACKEND ---
+    function exportEmplazamientos() {
+        if (localDatabase.emplazamientos.length === 0) {
+            alert("No hay emplazamientos registrados para exportar.");
+            logMessage("Intento de exportación de emplazamientos vacío.", "WARNING");
             return;
         }
 
-        const masterStructure = {
-            export_type: "session_master_sipait",
-            export_timestamp: new Date().toISOString(),
-            total_emplazamientos: localDatabase.emplazamientos.length,
-            total_dispositivos: localDatabase.dispositivos.length,
-            emplazamientos: localDatabase.emplazamientos,
-            dispositivos: localDatabase.dispositivos,
-            logs_sonda: systemLogs
+        const payload = {
+            export_type: "emplazamientos",
+            records: localDatabase.emplazamientos
         };
 
-        downloadJSON(masterStructure, `sipait_master_session_${Date.now()}.json`);
-        logMessage("Sesión completa y logs exportados correctamente a fichero maestro.", "INFO");
+        downloadJSON(payload, `emplazamientos_${Date.now()}.json`);
+        logMessage("Lote de emplazamientos exportado correctamente.", "INFO");
+    }
+
+    function exportDispositivos() {
+        if (localDatabase.dispositivos.length === 0) {
+            alert("No hay dispositivos registrados para exportar.");
+            logMessage("Intento de exportación de dispositivos vacío.", "WARNING");
+            return;
+        }
+
+        const payload = {
+            export_type: "inventario",
+            records: localDatabase.dispositivos
+        };
+
+        downloadJSON(payload, `inventario_${Date.now()}.json`);
+        logMessage("Lote de dispositivos exportado correctamente.", "INFO");
     }
 
     // --- NAVEGACIÓN ENTRE PESTAÑAS ---
@@ -468,26 +480,46 @@
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
+// --- CONTROL Y CIERRE DEL ESCÁNER ---
+    function stopScanner() {
+        if (html5QrCode && scannerIsRunning) {
+            html5QrCode.stop().then(() => {
+                scannerIsRunning = false;
+                document.getElementById('reader').style.display = 'none';
+                logMessage("Cámara desactivada correctamente.", "INFO");
+            }).catch(err => {
+                logMessage(`Error al detener la cámara: ${err}`, "WARNING");
+                scannerIsRunning = false;
+                document.getElementById('reader').style.display = 'none';
+            });
+        } else {
+            scannerIsRunning = false;
+            document.getElementById('reader').style.display = 'none';
+        }
+    }
+
     // --- ESCÁNER DE CÁMARA ULTRA-SENSIBLE ---
     function toggleScanner() {
+        // Validación previa de seguridad del navegador (HTTPS / localhost obligatorio)
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert("El navegador no permite acceder a la cámara (requiere entorno seguro HTTPS o localhost).");
+            logMessage("Error crítico: navigator.mediaDevices no soportado en este contexto.", "ERROR");
+            return;
+        }
+
         const readerDiv = document.getElementById('reader');
         
         if (!scannerIsRunning) {
             readerDiv.style.display = 'block';
             html5QrCode = new Html5Qrcode("reader");
             
-            // Configuración optimizada para alta velocidad y sensibilidad en campo
             const config = { 
-                fps: 25, // Mayor tasa de refresco para capturar al vuelo
-                qrbox: { width: 300, height: 150 }, // Ventana más amplia y versátil
+                fps: 25, 
+                qrbox: { width: 300, height: 150 }, 
                 aspectRatio: 1.0
             };
             
-            // Intentar forzar enfoque continuo si el hardware lo soporta
-            const cameraConfig = { 
-                facingMode: "environment",
-                advanced: [{ focusMode: "continuous" }] 
-            };
+            const cameraConfig = { facingMode: "environment" };
             
             html5QrCode.start(
                 cameraConfig, 
@@ -498,31 +530,21 @@
                     stopScanner();
                 },
                 (errorMessage) => {
-                    // Ignoramos los errores de fotogramas vacíos para no saturar el log
+                    // Errores de fotograma ignorados intencionadamente
                 }
             ).then(() => {
                 scannerIsRunning = true;
                 logMessage("Cámara de alta sensibilidad activada.", "INFO");
             }).catch(err => {
-                // Fallback si el dispositivo no soporta 'advanced focus'
-                html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                    document.getElementById('deviceSerial').value = decodedText;
-                    logMessage(`Escaneo exitoso: ${decodedText}`, "INFO");
-                    stopScanner();
-                }).then(() => {
-                    scannerIsRunning = true;
-                    logMessage("Cámara activada (modo estándar compatible).", "INFO");
-                }).catch(fallbackErr => {
-                    logMessage(`Error crítico al iniciar cámara: ${fallbackErr}`, "ERROR");
-                    alert("No se pudo acceder a la cámara o permisos denegados.");
-                    readerDiv.style.display = 'none';
-                });
+                logMessage(`Error al iniciar cámara: ${err}`, "ERROR");
+                alert("No se pudo acceder a la cámara. Comprueba los permisos en tu navegador móvil.");
+                readerDiv.style.display = 'none';
             });
         } else {
             stopScanner();
         }
     }
-
+    
     // --- REGISTRO LOCAL DE EMPLAZAMIENTOS ---
     function registerEmplazamiento() {
         const code = document.getElementById('emplazamientoCode').value.trim();
