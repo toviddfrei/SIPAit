@@ -36,6 +36,18 @@
         "Puede ser un sector",
         "Puede ser una ubicación en una vivienda"
       ]
+    },
+    {
+      "id": "IO personal",
+      "nombre_visual": "Calle Barraquetes 2A 46130 Massamagrell Valencia",
+      "nombre_mental": "Ubicación fiscal",
+      "latitud_base": 39.571176,
+      "longitud_base": -0.329338,
+      "altitud_base": 17,
+      "plantas": ["En las anotaciones"],
+      "zonas": [
+        "En las anotaciones"
+      ]
     }
   ]
 }
