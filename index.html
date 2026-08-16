@@ -335,7 +335,15 @@
         updateAreas();
     }
 
-    function exportEmplazamientos() {
+    // Helper asíncrono para calcular hash SHA-256 del contenido exportado
+    async function generarHashContenido(textoJson) {
+        const msgBuffer = new TextEncoder().encode(textoJson);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function exportEmplazamientos() {
         if (localDatabase.emplazamientos.length === 0) {
             alert("No hay emplazamientos registrados para exportar.");
             logMessage("Intento de exportación de emplazamientos vacío.", "WARNING");
@@ -349,11 +357,15 @@
             records: localDatabase.emplazamientos
         };
 
-        downloadJSON(payload, `emplazamientos_${mapaDestino}_${Date.now()}.json`);
-        logMessage(`Lote de emplazamientos exportado para el mapa [${mapaDestino}].`, "INFO");
+        const jsonString = JSON.stringify(payload, null, 4);
+        const fileHash = await generarHashContenido(jsonString);
+        const fileName = `emplazamientos_${mapaDestino}_${Date.now()}.json`;
+
+        downloadJSON(payload, fileName);
+        logMessage(`[AUDIT] Fichero creado: ${fileName} | Registros: ${payload.records.length} | Mapa: ${mapaDestino} | Hash SHA256: ${fileHash.substring(0, 16)}...`, "INFO");
     }
 
-    function exportDispositivos() {
+    async function exportDispositivos() {
         if (localDatabase.dispositivos.length === 0) {
             alert("No hay dispositivos registrados para exportar.");
             logMessage("Intento de exportación de dispositivos vacío.", "WARNING");
@@ -367,8 +379,12 @@
             records: localDatabase.dispositivos
         };
 
-        downloadJSON(payload, `inventario_${mapaDestino}_${Date.now()}.json`);
-        logMessage(`Lote de dispositivos exportado para el mapa [${mapaDestino}].`, "INFO");
+        const jsonString = JSON.stringify(payload, null, 4);
+        const fileHash = await generarHashContenido(jsonString);
+        const fileName = `inventario_${mapaDestino}_${Date.now()}.json`;
+
+        downloadJSON(payload, fileName);
+        logMessage(`[AUDIT] Fichero creado: ${fileName} | Registros: ${payload.records.length} | Mapa: ${mapaDestino} | Hash SHA256: ${fileHash.substring(0, 16)}...`, "INFO");
     }
 
     function switchView(viewName) {
