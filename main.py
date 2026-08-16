@@ -118,6 +118,7 @@ class UbicacionEntrada(BaseModel):
     altitud: Optional[float] = None
     observaciones: Optional[str] = None
 
+# --- Modelos Pydantic modificados para aceptar emplazamiento opcional ---
 class DispositivoEntrada(BaseModel):
     model_config = ConfigDict(extra='allow')
     id_registro: Optional[str] = None
@@ -127,7 +128,7 @@ class DispositivoEntrada(BaseModel):
     numero_serie: str
     etiqueta: str
     estado: str
-    codigo_emplazamiento: str
+    codigo_emplazamiento: Optional[str] = None  # <-- Ahora es opcional (permite nulo o vacío)
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     altitud: Optional[float] = None
@@ -181,12 +182,19 @@ def registrar_ubicacion(mapa: str, ubicacion: UbicacionEntrada):
 @app.get("/api/{mapa}/ubicaciones")
 def obtener_ubicaciones(mapa: str): return cargar_datos(mapa, "ubicaciones.json")
 
+# --- Endpoints actualizados ---
+
 @app.post("/api/{mapa}/registrar")
 def registrar_dispositivo_api(mapa: str, dispositivo: DispositivoEntrada):
-    ubicaciones = cargar_datos(mapa, "ubicaciones.json")
-    if not any(u["codigo_emplazamiento"] == dispositivo.codigo_emplazamiento for u in ubicaciones):
-        raise HTTPException(status_code=404, detail="El emplazamiento no existe.")
-        
+    # Validamos el emplazamiento SOLO si se ha proporcionado uno
+    if dispositivo.codigo_emplazamiento and dispositivo.codigo_emplazamiento.strip():
+        ubicaciones = cargar_datos(mapa, "ubicaciones.json")
+        if not any(u["codigo_emplazamiento"] == dispositivo.codigo_emplazamiento for u in ubicaciones):
+            raise HTTPException(status_code=404, detail="El emplazamiento indicado no existe.")
+    else:
+        # Si no tiene emplazamiento, lo asignamos de forma limpia como itinerante/sin asignar
+        dispositivo.codigo_emplazamiento = "SIN-EMPLAZAMIENTO"
+
     inventario = cargar_datos(mapa, "inventario.json")
     
     # Homogeneización con el autogenerador de la sonda: INV-YYYY-XXXX

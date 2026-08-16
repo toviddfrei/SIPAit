@@ -9,3 +9,4 @@ logs
 sipait.py
 sipait.spec
 *.pyc
+*/__pycache__/*

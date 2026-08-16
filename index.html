@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SIPAit - Terminal de Campo Móvil</title>
-    <!-- Librería para lectura de códigos de barras y QR por cámara -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
@@ -174,6 +173,15 @@
         <h1>SIPAit Mobile - Sonda de Campo</h1>
     </div>
 
+    <!-- Selector Global de Mapa (Dinámico desde config.json) -->
+    <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
+        <h3>🗺️ Contexto de Mapa Activo (Destino)</h3>
+        <label>Selecciona el Mapa de Destino:</label>
+        <select id="mapaSelect" onchange="onMapaChange()">
+            <!-- Se poblará dinámicamente desde config.json -->
+        </select>
+    </div>
+
     <!-- Pestañas de Navegación -->
     <div class="tabs-nav">
         <button class="tab-btn active" id="btn-tab-emp" onclick="switchView('emplazamiento')">📍 Emplazamientos</button>
@@ -191,15 +199,12 @@
                 <button type="button" class="btn btn-secondary" style="width: auto; margin-bottom: 12px;" onclick="autogenerateCode()">🔄</button>
             </div>
 
-            <label>Planta / Contexto:</label>
-            <select id="globalContext"></select>
-
             <label>Zona Específica:</label>
             <select id="areaSelect"></select>
         </div>
 
         <div class="card">
-            <h3>Terna Geográfica (GPS)</h3>
+            <h3>Terna Geográfica (GPS o Manual)</h3>
             <button type="button" class="btn btn-secondary" onclick="captureLocation()">📍 Capturar GPS Actual</button>
             
             <div class="row-group">
@@ -224,7 +229,7 @@
         </div>
     </div>
 
-    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS CON CÁMARA Y GEOLOCALIZACIÓN -->
+    <!-- VISTA 2: REGISTRO DE DISPOSITIVOS -->
     <div id="view-dispositivos" class="view-section">
         <div class="card">
             <h3>Inventario de Dispositivo (Sonda OCR / Escáner)</h3>
@@ -241,7 +246,6 @@
                 <button type="button" class="btn btn-accent" style="width: auto; margin-bottom: 12px;" onclick="toggleScanner()">📷 Escanear</button>
             </div>
 
-            <!-- Visor de la cámara nativa -->
             <div id="reader"></div>
 
             <label>Tipo de Dispositivo:</label>
@@ -261,12 +265,13 @@
             </select>
 
             <label>Emplazamiento Asociado:</label>
-            <select id="deviceEmplazamientoSelect"></select>
+            <select id="deviceEmplazamientoSelect">
+                <option value="">--- Sin Emplazamiento (Activo Itinerante / Portátil) ---</option>
+            </select>
         </div>
 
-        <!-- Bloque Geográfico independiente para el Dispositivo (Idéntico a Emplazamientos) -->
         <div class="card">
-            <h3>Geolocalización del Dispositivo</h3>
+            <h3>Geolocalización del Dispositivo (GPS o Manual)</h3>
             <button type="button" class="btn btn-success" onclick="captureDeviceLocation()">📍 Capturar GPS de Dispositivo</button>
             
             <div class="row-group">
@@ -306,15 +311,9 @@
     let html5QrCode = null;
     let scannerIsRunning = false;
 
-    // --- SISTEMA DE LOGS Y TRAZABILIDAD ---
     function logMessage(msg, level = 'INFO') {
         const timestamp = new Date().toISOString();
-        const logEntry = {
-            timestamp: timestamp,
-            level: level.toUpperCase(),
-            message: msg
-        };
-        
+        const logEntry = { timestamp: timestamp, level: level.toUpperCase(), message: msg };
         systemLogs.push(logEntry);
         localDatabase.logs_sonda = systemLogs;
 
@@ -325,7 +324,17 @@
         logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // --- FUNCIONES DE EXPORTACIÓN ADAPTADAS AL CONTRATO DEL BACKEND ---
+    function getMapaActivo() {
+        const select = document.getElementById('mapaSelect');
+        return select ? select.value : 'default';
+    }
+
+    function onMapaChange() {
+        const mapaActual = getMapaActivo();
+        logMessage(`Cambiado el contexto de mapa activo a: [${mapaActual}]`, "INFO");
+        updateAreas();
+    }
+
     function exportEmplazamientos() {
         if (localDatabase.emplazamientos.length === 0) {
             alert("No hay emplazamientos registrados para exportar.");
@@ -333,13 +342,15 @@
             return;
         }
 
+        const mapaDestino = getMapaActivo();
         const payload = {
+            mapa_id: mapaDestino,
             export_type: "emplazamientos",
             records: localDatabase.emplazamientos
         };
 
-        downloadJSON(payload, `emplazamientos_${Date.now()}.json`);
-        logMessage("Lote de emplazamientos exportado correctamente.", "INFO");
+        downloadJSON(payload, `emplazamientos_${mapaDestino}_${Date.now()}.json`);
+        logMessage(`Lote de emplazamientos exportado para el mapa [${mapaDestino}].`, "INFO");
     }
 
     function exportDispositivos() {
@@ -349,16 +360,17 @@
             return;
         }
 
+        const mapaDestino = getMapaActivo();
         const payload = {
+            mapa_id: mapaDestino,
             export_type: "inventario",
             records: localDatabase.dispositivos
         };
 
-        downloadJSON(payload, `inventario_${Date.now()}.json`);
-        logMessage("Lote de dispositivos exportado correctamente.", "INFO");
+        downloadJSON(payload, `inventario_${mapaDestino}_${Date.now()}.json`);
+        logMessage(`Lote de dispositivos exportado para el mapa [${mapaDestino}].`, "INFO");
     }
 
-    // --- NAVEGACIÓN ENTRE PESTAÑAS ---
     function switchView(viewName) {
         if(viewName !== 'dispositivos' && scannerIsRunning) {
             stopScanner();
@@ -392,55 +404,48 @@
         logMessage(`Código de activo autogenerado: ${generated}`, "INFO");
     }
 
-    // --- INICIALIZACIÓN ADAPTATIVA Y CARGA GLOBAL DESDE CONFIG.JSON ---
     async function init() {
         logMessage("Inicializando sonda adaptativa...", "INFO");
         
         const configPath = './core/config.json?t=' + new Date().getTime();
-        
         const anioActual = new Date().getFullYear();
         document.getElementById('emplazamientoCode').value = `EMP-${anioActual}-0001`;
         document.getElementById('deviceTag').value = `INV-${anioActual}-0001`;
 
         try {
             const res = await fetch(configPath, { cache: "no-store" });
-            if (!res.ok) throw new Error("Archivo no accesible");
+            if (!res.ok) throw new Error("Archivo config.json no accesible");
             
             const data = await res.json();
             appConfig = data;
             
-            // 1. Carga de Emplazamientos (Mapas / Contextos)
-            const ctxSelect = document.getElementById('globalContext');
-            ctxSelect.innerHTML = '';
+            const mapaSelect = document.getElementById('mapaSelect');
+            mapaSelect.innerHTML = '';
             
-            const source = data.mapas ? data.mapas : data;
-            
-            if (Array.isArray(source)) {
-                source.forEach(m => {
+            const mapasSource = data.mapas ? data.mapas : data;
+            if (Array.isArray(mapasSource)) {
+                mapasSource.forEach(m => {
                     const opt = document.createElement('option');
                     opt.value = m.id; 
                     opt.textContent = m.nombre_mental || m.id;
-                    ctxSelect.appendChild(opt);
+                    mapaSelect.appendChild(opt);
                 });
             } else {
-                Object.keys(source).forEach(k => {
-                    if (typeof source[k] === 'object' && k !== 'tipos_dispositivos') {
+                Object.keys(mapasSource).forEach(k => {
+                    if (typeof mapasSource[k] === 'object' && k !== 'tipos_dispositivos') {
                         const opt = document.createElement('option');
                         opt.value = k; 
-                        opt.textContent = source[k].nombre_mental || k;
-                        ctxSelect.appendChild(opt);
+                        opt.textContent = mapasSource[k].nombre_mental || k;
+                        mapaSelect.appendChild(opt);
                     }
                 });
             }
             
             updateAreas();
 
-            // 2. Carga dinámica de Tipos de Dispositivos
             const deviceTypeSelect = document.getElementById('deviceType');
             deviceTypeSelect.innerHTML = '';
-            
             let tiposList = data.tipos_dispositivos || ["PC Sobremesa", "Portátil", "Monitor", "Switch", "Impresora", "Servidor", "SAI/UPS"];
-            
             tiposList.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t;
@@ -448,13 +453,14 @@
                 deviceTypeSelect.appendChild(opt);
             });
 
-            logMessage("Sonda sincronizada: Configuración global cargada correctamente desde config.json.", "INFO");
+            logMessage("Sonda sincronizada: Mapas y configuración cargados dinámicamente desde config.json.", "INFO");
             
         } catch (e) {
-            logMessage(`AVISO: Error al leer config.json (${e.message}). Usando valores por defecto.`, "WARNING");
+            logMessage(`AVISO: Error al leer config.json (${e.message}). Usando mapas y valores por defecto offline.`, "WARNING");
             
-            const ctxSelect = document.getElementById('globalContext');
-            ctxSelect.innerHTML = '<option value="mapa_default">Fábrica Principal</option><option value="mapa_personal">Personal / Portátil</option>';
+            const mapaSelect = document.getElementById('mapaSelect');
+            mapaSelect.innerHTML = '<option value="default">Fábrica Principal (default)</option><option value="personal">Personal / Portátiles (personal)</option>';
+
             updateAreas();
 
             const deviceTypeSelect = document.getElementById('deviceType');
@@ -469,7 +475,7 @@
     }
     
     function updateAreas() {
-        const ctx = document.getElementById('globalContext').value;
+        const ctx = getMapaActivo();
         const areaSelect = document.getElementById('areaSelect');
         areaSelect.innerHTML = '';
         
@@ -498,13 +504,10 @@
         }
     }
 
-    document.getElementById('globalContext').onchange = updateAreas;
-
-    // --- GEOLOCALIZACIÓN DE EMPLAZAMIENTOS ---
     function captureLocation() {
         if (!navigator.geolocation) {
-            alert("Geolocalización no soportada.");
-            logMessage("Error: Geolocalización no disponible.", "ERROR");
+            alert("Geolocalización no soportada. Puedes introducir las coordenadas de forma manual.");
+            logMessage("Aviso: Geolocalización no disponible, entrada manual habilitada.", "WARNING");
             return;
         }
         logMessage("Adquiriendo señal GPS de emplazamiento con alta precisión...", "INFO");
@@ -512,17 +515,16 @@
             document.getElementById('lat').value = pos.coords.latitude;
             document.getElementById('lon').value = pos.coords.longitude;
             document.getElementById('alt').value = pos.coords.altitude ? pos.coords.altitude : 0.0;
-            logMessage(`GPS Emplazamiento: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
+            logMessage(`GPS Emplazamiento capturado: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
         }, err => {
-            logMessage(`Error GPS Emplazamiento: ${err.message}`, "ERROR");
+            logMessage(`Error GPS Emplazamiento (${err.message}). Entrada manual disponible.`, "WARNING");
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
-    // --- GEOLOCALIZACIÓN DE DISPOSITIVOS ---
     function captureDeviceLocation() {
         if (!navigator.geolocation) {
-            alert("Geolocalización no soportada.");
-            logMessage("Error: Geolocalización no disponible para dispositivo.", "ERROR");
+            alert("Geolocalización no soportada. Puedes introducir las coordenadas de forma manual.");
+            logMessage("Aviso: Geolocalización no disponible para dispositivo, entrada manual habilitada.", "WARNING");
             return;
         }
         logMessage("Adquiriendo señal GPS de dispositivo con alta precisión...", "INFO");
@@ -530,13 +532,12 @@
             document.getElementById('deviceLat').value = pos.coords.latitude;
             document.getElementById('deviceLon').value = pos.coords.longitude;
             document.getElementById('deviceAlt').value = pos.coords.altitude ? pos.coords.altitude : 0.0;
-            logMessage(`GPS Dispositivo: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
+            logMessage(`GPS Dispositivo capturado: Lat ${pos.coords.latitude.toFixed(5)}, Lon ${pos.coords.longitude.toFixed(5)}`, "INFO");
         }, err => {
-            logMessage(`Error GPS Dispositivo: ${err.message}`, "ERROR");
+            logMessage(`Error GPS Dispositivo (${err.message}). Entrada manual disponible.`, "WARNING");
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
-    // --- CONTROL Y CIERRE DEL ESCÁNER ---
     function stopScanner() {
         if (html5QrCode && scannerIsRunning) {
             html5QrCode.stop().then(() => {
@@ -554,7 +555,6 @@
         }
     }
 
-    // --- ESCÁNER DE CÁMARA ULTRA-SENSIBLE ---
     function toggleScanner() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             alert("El navegador no permite acceder a la cámara (requiere entorno seguro HTTPS o localhost).");
@@ -568,12 +568,7 @@
             readerDiv.style.display = 'block';
             html5QrCode = new Html5Qrcode("reader");
             
-            const config = { 
-                fps: 25, 
-                qrbox: { width: 300, height: 150 }, 
-                aspectRatio: 1.0
-            };
-            
+            const config = { fps: 25, qrbox: { width: 300, height: 150 }, aspectRatio: 1.0 };
             const cameraConfig = { facingMode: "environment" };
             
             html5QrCode.start(
@@ -584,9 +579,7 @@
                     logMessage(`Escaneo ultra-rápido exitoso: ${decodedText}`, "INFO");
                     stopScanner();
                 },
-                (errorMessage) => {
-                    // Errores de fotograma ignorados intencionadamente
-                }
+                (errorMessage) => {}
             ).then(() => {
                 scannerIsRunning = true;
                 logMessage("Cámara de alta sensibilidad activada.", "INFO");
@@ -600,7 +593,6 @@
         }
     }
     
-    // --- REGISTRO LOCAL DE EMPLAZAMIENTOS ---
     function registerEmplazamiento() {
         const code = document.getElementById('emplazamientoCode').value.trim();
         if(!code) {
@@ -609,9 +601,11 @@
             return;
         }
 
+        const plantaActual = getMapaActivo();
+
         const record = {
             codigo_emplazamiento: code,
-            planta: document.getElementById('globalContext').value || "General",
+            planta: plantaActual,
             zona: document.getElementById('areaSelect').value || "General",
             latitud: parseFloat(document.getElementById('lat').value) || 0.0,
             longitud: parseFloat(document.getElementById('lon').value) || 0.0,
@@ -628,7 +622,7 @@
         opt.textContent = `${code} (${record.planta} - ${record.zona})`;
         devEmpSelect.appendChild(opt);
 
-        logMessage(`Emplazamiento registrado en memoria local: [${code}]`, "INFO");
+        logMessage(`Emplazamiento registrado en memoria local: [${code} en ${plantaActual}]`, "INFO");
         alert("Emplazamiento guardado en la sesión local. Usa el botón inferior al terminar para exportar el JSON maestro.");
 
         const anioActual = new Date().getFullYear();
@@ -640,7 +634,6 @@
         document.getElementById('notes').value = '';
     }
 
-    // --- REGISTRO LOCAL DE DISPOSITIVOS ---
     function registerDevice() {
         const serial = document.getElementById('deviceSerial').value.trim();
         if(!serial) {
@@ -650,6 +643,7 @@
         }
 
         const tagCode = document.getElementById('deviceTag').value.trim();
+        const emplazamientoSeleccionado = document.getElementById('deviceEmplazamientoSelect').value;
 
         const device = {
             id_registro: tagCode,
@@ -658,7 +652,7 @@
             modelo: document.getElementById('deviceModelo').value.trim() || "Genérico",
             numero_serie: serial,
             estado: document.getElementById('deviceEstado').value,
-            codigo_emplazamiento: document.getElementById('deviceEmplazamientoSelect').value || "EMP-2026-0001",
+            codigo_emplazamiento: emplazamientoSeleccionado ? emplazamientoSeleccionado : "SIN-EMPLAZAMIENTO",
             latitud: parseFloat(document.getElementById('deviceLat').value) || null,
             longitud: parseFloat(document.getElementById('deviceLon').value) || null,
             altitud: parseFloat(document.getElementById('deviceAlt').value) || null,
@@ -668,7 +662,7 @@
         };
 
         localDatabase.dispositivos.push(device);
-        logMessage(`Dispositivo registrado en memoria local con GPS: [ID: ${tagCode} | Serie: ${serial}]`, "INFO");
+        logMessage(`Dispositivo registrado en memoria local con GPS/Manual: [ID: ${tagCode} | Serie: ${serial}]`, "INFO");
         alert("Dispositivo guardado en la sesión local. Usa el botón inferior al terminar para exportar el JSON maestro.");
 
         const anioActual = new Date().getFullYear();
@@ -683,7 +677,6 @@
         document.getElementById('deviceNotes').value = '';
     }
 
-    // --- UTILIDAD DE DESCARGA JSON ---
     function downloadJSON(jsonObject, fileName) {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonObject, null, 4));
         const downloadAnchor = document.createElement('a');

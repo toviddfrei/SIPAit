@@ -18,19 +18,35 @@ Verificamos que ambos servidores funcionan
 
 - Sistema de log en la base y en la sonda
     - [ ] Verificar implantación sistema log de la base
+        - [ ] Ubicar los logs en una sola ubicación
+        - [ ] La nomenclatura debe ser entendible a simple vista
+        - [ ] Crear un sistema de almacenaje continuo
     - [ ] Verificar implantación sistema log en la sonda
+        - [ ] Ubicar los logs en una sola ubicación
+        - [ ] La nomenclatura debe ser entendible a simple vista
+        - [ ] Crear un sistema de almacenaje continuo
 
 - Estandarización de nombres
     - [ ] Campos en emplazamientos
+        - [ ]
     - [ ] Campos en ubicaciones
+        - [ ]
     - [ ] Campos en dispositivos
+        - [ ]
 
 - Sincronización automática sonda a base
     - [ ] Conexión entre equipo y smartphone
+        - [ ] El sistema oficial sería sobre un dominio propio desde la propia app se subirian los ficheros
+        - [x] Temporalmente utilizamos sistema híbrido, arrancamos server ftp en mobil con app gratuita y cliente desde portatil con filezilla conectado en wifi que monta el portatil
     - [ ] Extracción de ficheros y ubicación en destino
+        - [ ] La extracción de ficheros desde el mobil al portatil es temporalmente manual utilizando el sistema híbrido, se borra el mobil cuando se traslada al hd del portatil
         - Definir origen y destino claramente
+            - [x] El origen es el mobil directorio de descargas
+            - [x] El destino es en el portatil SIPAit/data/usb
     - [ ] Verificación de la extracción y logs del mismo
-    - [ ] Informe visual de la extración finalizada correctamente
+        - [ ] La sonda debe realizar un registro completo de su actividad, registrando sobre todo los ficheros que crea
+        - [ ] El sistema de log debe verificar de alguna manera que los ficheros creados por la sonda, se ubicaron en el directorio de destino
+        - [ ] Emision de un log de sincronizacion registrando los ficheros creados e identificados
 
 - Sincronización datos sonda en datos base SIPAit/data/usb
     - [ ] Conteo pre sincronización
@@ -59,7 +75,7 @@ Verificamos que ambos servidores funcionan
 
 |Nombre técnico en main.py|Tipo de dato|Requerido / Opcional|Rol / Etiqueta equivalente en Interfaz / Sonda|
 |--|--|--|--|
-|codigo_emplazamiento|str|Opcional (Autogenerado)|ID único del emplazamiento (Ej: EMP-2026-0001).|
+|codigo_emplazamiento|str|Opcional (Autogenerado)|ID único del emplazamiento (Ej.: EMP-2026-0001).|
 |planta|str|Obligatorio|Planta o nivel físico (Desplegable basado en config.json).|
 |zona|str|Obligatorio|Zona o espacio específico (Desplegable basado en config.json).|
 |latitud|float|Opcional|Coordenada GPS de latitud capturada por la sonda.|
@@ -78,10 +94,10 @@ Verificamos que ambos servidores funcionan
 |--|--|--|--|
 |model_config = ConfigDict(extra='allow')| | | |
 |tipo|str|Obligatorio|"Categoría del activo (Desplegable: PC, Portátil, Monitor, etc.)."|
-|marca|str|Obligatorio|"Fabricante del equipo (Ej: Dell, HP, Lenovo)."|
+|marca|str|Obligatorio|"Fabricante del equipo (Ej.: Dell, HP, Lenovo)."|
 |modelo|str|Obligatorio|Modelo comercial del dispositivo.|
 |numero_serie|str|Obligatorio|Identificador único o Service Tag de fábrica.|
 |etiqueta: str  # <-- Nuevo campo: Etiqueta de inventario de la compañía|
-|estado|str|Obligatorio|"Estado operativo (Ej: Operativo, Baja)."|
+|estado|str|Obligatorio|"Estado operativo (Ej.: Operativo, Baja)."|
 |codigo_emplazamiento|str|Obligatorio|Relación o vínculo con la ubicación física donde se ubica.|
 |observaciones|str|Opcional|Notas específicas del hardware.|
