@@ -1,8 +1,9 @@
 {
   "sistema": {
-    "nombre": "SIPAit",
-    "version": "2.0",
-    "pin_config": "1234"
+    "pin_config": "1234",
+    "dir_logs": "logs",
+    "dir_usb": "data/usb",
+    "dir_papelera": "data/papelera"
   },
   "rutas": {
     "api_ubicaciones": "/api/{mapa}/ubicaciones",

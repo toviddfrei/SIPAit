@@ -1,0 +1,60 @@
+{
+    "export_type": "logs_sonda",
+    "records": [
+        {
+            "timestamp": "2026-08-16T19:26:54.924Z",
+            "level": "INFO",
+            "message": "Inicializando sonda adaptativa..."
+        },
+        {
+            "timestamp": "2026-08-16T19:26:55.186Z",
+            "level": "INFO",
+            "message": "Sonda sincronizada: Mapas y configuración cargados dinámicamente desde config.json."
+        },
+        {
+            "timestamp": "2026-08-16T19:26:59.910Z",
+            "level": "INFO",
+            "message": "Cambiado el contexto de mapa activo a: [IO personal]"
+        },
+        {
+            "timestamp": "2026-08-16T19:27:20.111Z",
+            "level": "INFO",
+            "message": "Cámara de alta sensibilidad activada."
+        },
+        {
+            "timestamp": "2026-08-16T19:27:30.200Z",
+            "level": "INFO",
+            "message": "Escaneo ultra-rápido exitoso: 8432275058967"
+        },
+        {
+            "timestamp": "2026-08-16T19:27:30.203Z",
+            "level": "INFO",
+            "message": "Cámara desactivada correctamente."
+        },
+        {
+            "timestamp": "2026-08-16T19:27:51.073Z",
+            "level": "INFO",
+            "message": "Adquiriendo señal GPS de dispositivo con alta precisión..."
+        },
+        {
+            "timestamp": "2026-08-16T19:27:52.038Z",
+            "level": "INFO",
+            "message": "GPS Dispositivo capturado: Lat 39.57059, Lon -0.33130"
+        },
+        {
+            "timestamp": "2026-08-16T19:28:00.483Z",
+            "level": "INFO",
+            "message": "Dispositivo registrado en memoria local con GPS/Manual: [ID: INV-2026-0001 | Serie: 8432275058967]"
+        },
+        {
+            "timestamp": "2026-08-16T19:28:06.933Z",
+            "level": "WARNING",
+            "message": "Intento de exportación de emplazamientos vacío."
+        },
+        {
+            "timestamp": "2026-08-16T19:28:07.791Z",
+            "level": "INFO",
+            "message": "[AUDIT] Fichero creado: inventario_IO personal_1786908487790.json | Registros: 1 | Mapa: IO personal | Hash SHA256: 04ecf649b0991f5a..."
+        }
+    ]
+}

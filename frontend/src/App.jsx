@@ -21,7 +21,6 @@ const iconoEmplazamiento = L.divIcon({
   iconAnchor: [8, 16],
 });
 
-// Icono específico para dispositivos geolocalizados en el mapa
 const iconoDispositivo = L.divIcon({
   className: 'custom-dispositivo',
   html: '<div style="background-color: #28a745; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.6); border-radius: 50%;" title="Dispositivo"></div>',
@@ -49,7 +48,6 @@ function App() {
   const [config, setConfig] = useState(null);
   const [mapaActivo, setMapaActivo] = useState('');
 
-  // Estados de autenticación para la pestaña de configuración ("toalla de la ducha")
   const [pinIngresado, setPinIngresado] = useState('');
   const [configDesbloqueada, setConfigDesbloqueada] = useState(false);
 
@@ -65,7 +63,6 @@ function App() {
   const [geoStatus, setGeoStatus] = useState('No capturada');
   const [loadingGeo, setLoadingGeo] = useState(false);
 
-  // Añadidos campos lat, lon, alt y estado de geo para dispositivos
   const [dispositivoForm, setDispositivoForm] = useState({
     id_registro: '',
     tipo: 'PC Sobremesa',
@@ -89,10 +86,8 @@ function App() {
   const [centroMapa, setCentroMapa] = useState([40.4168, -3.7038]);
   const [coordenadasModificadas, setCoordenadasModificadas] = useState({ lat: '', lon: '' });
 
-  // Estado para la gestión industrial de lotes y papelera automática
   const [ficherosParaImportar, setFicherosParaImportar] = useState([]);
 
-  // 1. Cargar configuración dinámica desde la API centralizada (/api/config)
   useEffect(() => {
     axios.get(`${API_URL}/api/config`)
       .then(res => {
@@ -158,7 +153,6 @@ function App() {
     }
   };
 
-  // 2. Cargar datos del entorno activo
   useEffect(() => {
     if (!mapaActivo) return;
 
@@ -332,7 +326,6 @@ function App() {
     }
   };
 
-  // Manejador de pre-validación de lotes
   const handlePreValidarFicheros = async (event) => {
     const files = Array.from(event.target.files);
     if (!files || files.length === 0) return;
@@ -365,36 +358,6 @@ function App() {
     setFicherosParaImportar(resultados);
   };
 
-  // Manejador de confirmación, volcado y envío a papelera por mapa
-  const handleConfirmarImportacionLotes = async () => {
-    try {
-      let totalNuevos = 0;
-      
-      for (const fichero of ficherosParaImportar) {
-        if (fichero.valido && fichero.data) {
-          const payloadConRuta = {
-            ...fichero.data,
-            source_file_path: fichero.path
-          };
-
-          const response = await axios.post(
-            `${API_URL}/api/${mapaActivo}/sincronizar-lote`, 
-            payloadConRuta
-          );
-          if (response.data && response.data.nuevos_agregados) {
-            totalNuevos += response.data.nuevos_agregados;
-          }
-        }
-      }
-
-      alert(`✅ Sincronización masiva completada con éxito. Total registros añadidos: ${totalNuevos}`);
-      setFicherosParaImportar([]); 
-      setTimeout(() => window.location.reload(), 500); 
-    } catch (err) {
-      alert('❌ Error durante el volcado al sistema: ' + (err.response?.data?.detail || err.message));
-    }
-  };
-
   if (!config) {
     return <div style={{ textAlign: 'center', marginTop: '50px', fontFamily: 'Arial' }}>Cargando sistema SIPAit...</div>;
   }
@@ -417,6 +380,59 @@ function App() {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* --- SECCIÓN GLOBAL DE SINCRONIZACIÓN USB (Ubicación general en el Main) --- */}
+      <div style={{ marginBottom: '15px', padding: '12px', background: '#f1f8ff', borderRadius: '6px', border: '1px dashed #007bff' }}>
+        <div style={{ textAlign: 'center' }}>
+          <label 
+            htmlFor="file-upload-global-usb" 
+            style={{ cursor: 'pointer', display: 'inline-block', padding: '8px 16px', background: '#007bff', color: 'white', borderRadius: '4px', fontWeight: 'bold', fontSize: '14px' }}
+          >
+            📥 Sincronización Global USB (Sonda &rarr; Base)
+          </label>
+          <input 
+            id="file-upload-global-usb" 
+            type="file" 
+            multiple 
+            accept=".json" 
+            onChange={(e) => {
+              e.stopPropagation();
+              handlePreValidarFicheros(e);
+            }} 
+            style={{ display: 'none' }} 
+          />
+        </div>
+
+        {Array.isArray(ficherosParaImportar) && ficherosParaImportar.length > 0 && (
+          <div style={{ marginTop: '12px', background: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}>
+            <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#333' }}>🔍 Verificación Previa y Hashes:</h4>
+            <ul style={{ paddingLeft: '20px', margin: '0 0 10px 0', fontSize: '12px' }}>
+              {ficherosParaImportar.map((f, idx) => (
+                <li key={idx} style={{ color: f.valido ? 'green' : 'red', marginBottom: '3px' }}>
+                  <strong>{f.name}</strong> &rarr; {f.valido ? `OK [${f.count} registros listos]` : `⚠️ ${f.error}`}
+                </li>
+              ))}
+            </ul>
+            <button 
+              type="button"
+              onClick={async () => {
+                try {
+                  const response = await axios.post(`${API_URL}/api/sincronizar-global`);
+                  const data = response.data;
+                  alert(`✅ Sincronización global completada.\n- Ficheros procesados: ${data.ficheros_procesados}\n- Registros integrados: ${data.registros_integrados}`);
+                  setFicherosParaImportar([]);
+                  window.location.reload();
+                } catch (err) {
+                  alert('❌ Error en sincronización global: ' + (err.response?.data?.detail || err.message));
+                }
+              }}
+              style={{ width: '100%', padding: '8px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+            >
+              🚀 Ejecutar Volcado Transaccional, Hashes y Papelera
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Botones de Navegación */}
@@ -567,7 +583,6 @@ function App() {
             <input style={{ width: '100%', padding: '10px', fontSize: '15px', boxSizing: 'border-box' }} value={dispositivoForm.etiqueta} onChange={(e) => setDispositivoForm({...dispositivoForm, etiqueta: e.target.value})} placeholder="Ej: ETQ-998822" required />
           </div>
 
-          {/* Bloque Geográfico independiente para el Dispositivo */}
           <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '6px', border: '1px solid #ddd' }}>
             <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>Geolocalización del Dispositivo: <strong>{geoStatusDisp}</strong></p>
             <button type="button" onClick={capturarGPSDispositivo} style={{ width: '100%', padding: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '12px' }}>
@@ -595,54 +610,11 @@ function App() {
         </form>
       )}
 
-      {/* VISTA 3: RESUMEN DE REGISTROS */}
+      {/* VISTA 3: RESUMEN DE REGISTROS (Limpio de importadores locales) */}
       {vista === 'resumen' && (
         <div>
           <h3>📋 Resumen de Datos: {mapaConfigActual.nombre_mental}</h3>
           
-          {/* BLOQUE DE IMPORTACIÓN INDUSTRIAL POR MAPA */}
-          <div style={{ marginBottom: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '6px', border: '1px dashed #007bff' }}>
-            <div style={{ textAlign: 'center' }}>
-              <label 
-                htmlFor="file-upload-sipa" 
-                style={{ cursor: 'pointer', display: 'inline-block', padding: '10px 20px', background: '#007bff', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}
-              >
-                📁 Seleccionar Lotes del Móvil [{mapaConfigActual.nombre_mental}]
-              </label>
-              <input 
-                id="file-upload-sipa" 
-                type="file" 
-                multiple 
-                accept=".json" 
-                onChange={(e) => {
-                  e.stopPropagation();
-                  handlePreValidarFicheros(e);
-                }} 
-                style={{ display: 'none' }} 
-              />
-            </div>
-
-            {Array.isArray(ficherosParaImportar) && ficherosParaImportar.length > 0 && (
-              <div style={{ marginTop: '15px', background: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}>
-                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#333' }}>🔍 Verificación Previa y Papelera Automática:</h4>
-                <ul style={{ paddingLeft: '20px', margin: '0 0 15px 0', fontSize: '13px' }}>
-                  {ficherosParaImportar.map((f, idx) => (
-                    <li key={idx} style={{ color: f.valido ? 'green' : 'red', marginBottom: '4px' }}>
-                      <strong>{f.name}</strong> &rarr; {f.valido ? `OK [${f.count} registros listos]` : `⚠️ ${f.error}`}
-                    </li>
-                  ))}
-                </ul>
-                <button 
-                  type="button"
-                  onClick={handleConfirmarImportacionLotes}
-                  style={{ width: '100%', padding: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  🚀 Confirmar, Volcar y Archivar en Papelera
-                </button>
-              </div>
-            )}
-          </div>
-
           <div style={{ marginBottom: '20px' }}>
             <h4>📍 Emplazamientos Registrados ({listaUbicaciones.length})</h4>
             {listaUbicaciones.map((ub, idx) => (
@@ -658,7 +630,7 @@ function App() {
         </div>
       )}
 
-      {/* VISTA 4: MAPA REAL (Emplazamientos y Dispositivos fijos) */}
+      {/* VISTA 4: MAPA REAL */}
       {vista === 'mapa' && (
         <div>
           <div style={{ height: '450px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ccc' }}>
@@ -666,7 +638,6 @@ function App() {
               <ChangeView center={centroMapa} zoom={19} />
               <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={20} />
               
-              {/* Marcadores de Emplazamientos (Azules) */}
               {listaUbicaciones.map((ub, idx) => (
                 ub.latitud && ub.longitud && (
                   <Marker key={`ub-${idx}`} position={[ub.latitud, ub.longitud]} icon={iconoEmplazamiento}>
@@ -678,7 +649,6 @@ function App() {
                 )
               ))}
 
-              {/* Marcadores de Dispositivos (Verdes) */}
               {listaDispositivos.map((dev, idx) => (
                 dev.latitud && dev.longitud && (
                   <Marker key={`dev-${idx}`} position={[dev.latitud, dev.longitud]} icon={iconoDispositivo}>
@@ -696,7 +666,7 @@ function App() {
         </div>
       )}
 
-      {/* VISTA 5: CONFIGURACIÓN ("Toalla al salir de la ducha") */}
+      {/* VISTA 5: CONFIGURACIÓN */}
       {vista === 'config' && (
         <div>
           <h3>⚙️ Configuración del Sistema (Core)</h3>

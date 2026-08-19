@@ -279,3 +279,132 @@ def sincronizar_lote_datos(mapa: str, payload: dict):
         "nuevos_agregados": nuevos,
         "mensaje": f"Sincronización correcta en {mapa}. {nuevos} registros nuevos."
     }
+
+
+import hashlib
+from pathlib import Path
+import shutil
+import json
+import os
+from fastapi import HTTPException
+
+@app.post("/api/sincronizar-global")
+def sincronizar_global_usb():
+    config = cargar_configuracion()
+    sistema_info = config.get("sistema", {})
+    
+    dir_logs = sistema_info.get("dir_logs", "logs")
+    dir_usb = sistema_info.get("dir_usb", "data/usb")
+    dir_papelera = sistema_info.get("dir_papelera", "data/papelera")
+    
+    # Asegurar directorios
+    os.makedirs(dir_logs, exist_ok=True)
+    os.makedirs(dir_usb, exist_ok=True)
+    os.makedirs(dir_papelera, exist_ok=True)
+    
+    logger.info("[AUDIT BACKEND] Inicio de proceso de sincronización global USB solicitada.")
+    
+    informe_global = {
+        "status": "success",
+        "ficheros_procesados": 0,
+        "registros_integrados": 0,
+        "detalles": []
+    }
+    
+    usb_path = Path(dir_usb)
+    if not usb_path.exists():
+        logger.error(f"[AUDIT BACKEND] Fallo crítico: El directorio USB '{dir_usb}' no existe.")
+        raise HTTPException(status_code=404, detail="El directorio USB no existe o no está accesible.")
+        
+    ficheros_json = list(usb_path.glob("*.json"))
+    if not ficheros_json:
+        logger.info("[AUDIT BACKEND] Sincro finalizada: No se encontraron ficheros pendientes en la USB.")
+        return {"status": "success", "mensaje": "No se encontraron ficheros pendientes en la USB.", "detalles": []}
+
+    for fichero_path in ficheros_json:
+        try:
+            logger.info(f"[AUDIT BACKEND] Analizando fichero en USB: {fichero_path.name}")
+            with open(fichero_path, "r", encoding="utf-8") as f:
+                contenido = json.load(f)
+                
+            mapa_id = contenido.get("mapa_id")
+            export_type = contenido.get("export_type")
+            records = contenido.get("records", [])
+            
+            if not mapa_id or not export_type or not isinstance(records, list):
+                logger.warning(f"[AUDIT BACKEND] Fichero descartado por estructura inválida: {fichero_path.name}")
+                continue
+                
+            # Cálculo de Hash SHA256 para validación de integridad
+            sha256_hash = hashlib.sha256()
+            with open(fichero_path, "rb") as f_bin:
+                for byte_block in iter(lambda: f_bin.read(4096), b""):
+                    sha256_hash.update(byte_block)
+            file_hash = sha256_hash.hexdigest()
+            
+            archivo_destino = "ubicaciones.json" if export_type == "emplazamientos" else "inventario.json"
+            id_key = "codigo_emplazamiento" if export_type == "emplazamientos" else "id_registro"
+            
+            datos_actuales = cargar_datos(mapa_id, archivo_destino)
+            conteo_previo = len(datos_actuales)
+            
+            nuevos_anadidos = 0
+            duplicados_omitidos = 0
+            
+            for reg in records:
+                reg_id = reg.get(id_key)
+                if not reg_id:
+                    continue
+                
+                # VERIFICACIÓN ESTRICTA DE DUPLICADOS
+                existente = next((item for item in datos_actuales if item.get(id_key) == reg_id), None)
+                if not existente:
+                    datos_actuales.append(reg)
+                    nuevos_anadidos += 1
+                else:
+                    # Registro ya existente: Actualizamos datos limpios o prevenimos duplicidad
+                    index = datos_actuales.index(existente)
+                    datos_actuales[index] = reg
+                    duplicados_omitidos += 1
+
+            guardar_datos(mapa_id, archivo_destino, datos_actuales)
+            conteo_posterior = len(datos_actuales)
+            
+            # Movimiento a papelera centralizada según config.json
+            destino_papelera = Path(dir_papelera) / fichero_path.name
+            shutil.move(str(fichero_path), str(destino_papelera))
+            
+            informe_global["ficheros_procesados"] += 1
+            informe_global["registros_integrados"] += nuevos_anadidos
+            
+            detalle_item = {
+                "fichero": fichero_path.name,
+                "mapa": mapa_id,
+                "tipo": export_type,
+                "hash_sha256": file_hash,
+                "conteo_previo": conteo_previo,
+                "nuevos_integrados": nuevos_anadidos,
+                "duplicados_actualizados": duplicados_omitidos,
+                "conteo_posterior": conteo_posterior,
+                "papelera": str(destino_papelera)
+            }
+            informe_global["detalles"].append(detalle_item)
+            
+            # TRAZA MAESTRA EN EL LOG DEL BACKEND
+            logger.info(
+                f"[AUDIT BACKEND SUCCESS] Fichero procesado con éxito: {fichero_path.name} | "
+                f"Mapa: {mapa_id} | Hash SHA256: {file_hash} | "
+                f"Previos: {conteo_previo} | Añadidos: {nuevos_anadidos} | "
+                f"Posterior: {conteo_posterior} | Movido a papelera: {dir_papelera}"
+            )
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[AUDIT BACKEND ERROR] Fallo crítico procesando {fichero_path.name}: {error_msg}")
+            informe_global["detalles"].append({
+                "fichero": fichero_path.name,
+                "error": error_msg
+            })
+
+    logger.info(f"[AUDIT BACKEND] Sincronización global finalizada. Ficheros procesados: {informe_global['ficheros_procesados']}, Registros integrados: {informe_global['registros_integrados']}")
+    return informe_global

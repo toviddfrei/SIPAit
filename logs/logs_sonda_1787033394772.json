@@ -1,0 +1,85 @@
+{
+    "export_type": "logs_sonda",
+    "records": [
+        {
+            "timestamp": "2026-08-18T06:05:35.907Z",
+            "level": "INFO",
+            "message": "Inicializando sonda adaptativa..."
+        },
+        {
+            "timestamp": "2026-08-18T06:05:35.963Z",
+            "level": "INFO",
+            "message": "Sonda sincronizada: Mapas y configuración cargados dinámicamente desde config.json."
+        },
+        {
+            "timestamp": "2026-08-18T06:05:38.248Z",
+            "level": "INFO",
+            "message": "Cambiado el contexto de mapa activo a: [IO personal]"
+        },
+        {
+            "timestamp": "2026-08-18T06:05:41.260Z",
+            "level": "INFO",
+            "message": "Código de emplazamiento autonumérico generado: EMP-2026-8310"
+        },
+        {
+            "timestamp": "2026-08-18T06:05:42.869Z",
+            "level": "INFO",
+            "message": "Adquiriendo señal GPS de emplazamiento con alta precisión..."
+        },
+        {
+            "timestamp": "2026-08-18T06:05:43.678Z",
+            "level": "INFO",
+            "message": "GPS Emplazamiento capturado: Lat 39.47326, Lon -0.51087"
+        },
+        {
+            "timestamp": "2026-08-18T06:05:56.749Z",
+            "level": "INFO",
+            "message": "Emplazamiento registrado en memoria local: [EMP-2026-8310 en IO personal]"
+        },
+        {
+            "timestamp": "2026-08-18T06:06:06.632Z",
+            "level": "INFO",
+            "message": "Código de activo autogenerado: INV-2026-2602"
+        },
+        {
+            "timestamp": "2026-08-18T06:06:30.078Z",
+            "level": "INFO",
+            "message": "Cámara de alta sensibilidad activada."
+        },
+        {
+            "timestamp": "2026-08-18T06:08:03.019Z",
+            "level": "INFO",
+            "message": "Escaneo ultra-rápido exitoso: HP ProBook 640 G5,5EG72AV,5CG050235W,1y1y0y"
+        },
+        {
+            "timestamp": "2026-08-18T06:08:03.023Z",
+            "level": "INFO",
+            "message": "Cámara desactivada correctamente."
+        },
+        {
+            "timestamp": "2026-08-18T06:08:46.253Z",
+            "level": "INFO",
+            "message": "Adquiriendo señal GPS de dispositivo con alta precisión..."
+        },
+        {
+            "timestamp": "2026-08-18T06:08:47.066Z",
+            "level": "INFO",
+            "message": "GPS Dispositivo capturado: Lat 39.47327, Lon -0.51089"
+        },
+        {
+            "timestamp": "2026-08-18T06:09:31.007Z",
+            "level": "INFO",
+            "message": "Dispositivo registrado en memoria local con GPS/Manual: [ID: INV-2026-2602 | Serie: HP ProBook 640 G5,5EG72AV,5CG050235W,1y1y0y]"
+        },
+        {
+            "timestamp": "2026-08-18T06:09:51.989Z",
+            "level": "INFO",
+            "message": "[AUDIT] Fichero creado: emplazamientos_IO personal_1787033391987.json | Registros: 1 | Mapa: IO personal | Hash SHA256: 43b30dd67ae4f75a..."
+        },
+        {
+            "timestamp": "2026-08-18T06:09:53.547Z",
+            "level": "INFO",
+            "message": "[AUDIT] Fichero creado: inventario_IO personal_1787033393542.json | Registros: 1 | Mapa: IO personal | Hash SHA256: 0f0a585680efc4b5..."
+        }
+    ]
+}

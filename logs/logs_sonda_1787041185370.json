@@ -1,0 +1,60 @@
+{
+    "export_type": "logs_sonda",
+    "records": [
+        {
+            "timestamp": "2026-08-18T08:19:08.875Z",
+            "level": "INFO",
+            "message": "Inicializando sonda adaptativa..."
+        },
+        {
+            "timestamp": "2026-08-18T08:19:09.062Z",
+            "level": "INFO",
+            "message": "Sonda sincronizada: Mapas y configuración cargados dinámicamente desde config.json."
+        },
+        {
+            "timestamp": "2026-08-18T08:19:11.030Z",
+            "level": "INFO",
+            "message": "Cambiado el contexto de mapa activo a: [IO personal]"
+        },
+        {
+            "timestamp": "2026-08-18T08:19:12.398Z",
+            "level": "INFO",
+            "message": "Código de emplazamiento autonumérico generado: EMP-2026-8165"
+        },
+        {
+            "timestamp": "2026-08-18T08:19:13.925Z",
+            "level": "INFO",
+            "message": "Adquiriendo señal GPS de emplazamiento con alta precisión..."
+        },
+        {
+            "timestamp": "2026-08-18T08:19:14.116Z",
+            "level": "INFO",
+            "message": "Adquiriendo señal GPS de emplazamiento con alta precisión..."
+        },
+        {
+            "timestamp": "2026-08-18T08:19:14.837Z",
+            "level": "INFO",
+            "message": "GPS Emplazamiento capturado: Lat 39.47211, Lon -0.50976"
+        },
+        {
+            "timestamp": "2026-08-18T08:19:14.841Z",
+            "level": "INFO",
+            "message": "GPS Emplazamiento capturado: Lat 39.47211, Lon -0.50976"
+        },
+        {
+            "timestamp": "2026-08-18T08:19:38.430Z",
+            "level": "INFO",
+            "message": "Emplazamiento registrado en memoria local: [EMP-2026-8165 en IO personal]"
+        },
+        {
+            "timestamp": "2026-08-18T08:19:42.575Z",
+            "level": "INFO",
+            "message": "[AUDIT] Fichero creado: emplazamientos_IO personal_1787041182574.json | Registros: 1 | Mapa: IO personal | Hash SHA256: d7e97aee99be8fce..."
+        },
+        {
+            "timestamp": "2026-08-18T08:19:44.707Z",
+            "level": "WARNING",
+            "message": "Intento de exportación de dispositivos vacío."
+        }
+    ]
+}
